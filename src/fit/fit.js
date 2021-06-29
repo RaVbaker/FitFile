@@ -1,9 +1,4 @@
-import {
-    repeat,
-    nthBitToBool,
-    toUint8Array,
-    xor,
-} from '../functions.js';
+import { nthBitToBool } from '../functions.js';
 import { messages, basetypes } from './profiles.js';
 
 function calculateCRC(uint8array, start, end) {
@@ -70,13 +65,14 @@ function FileHeader(args = {}) {
     function readProfileVersion(code) {
         return (code / 100).toFixed(2);
     }
+
     function read(view) {
         const type                = 'header';
         const length              = view.getUint8(0, true);
         const protocolVersionCode = view.getUint8(1, true);
         const profileVersionCode  = view.getUint16(2, true);
         const dataRecordsLength   = view.getInt32(4, true);
-        const crc                 = view.getUint16(crcIndex(length), true);
+        const crc                 = (length === default_size) ? view.getUint16(crcIndex(length), true) : false;
 
         const protocolVersion = readProtocolVersion(protocolVersionCode);
         const profileVersion  = readProfileVersion(profileVersionCode);
@@ -90,6 +86,7 @@ function FileHeader(args = {}) {
             length
         };
     };
+
     function encode(args) {
         const length            = default_size;
         const dataRecordsLength = args.fileLength - length - crc_length; // without header and crc
@@ -120,6 +117,33 @@ function FileHeader(args = {}) {
     return Object.freeze({ read, encode });
 }
 
+function Header() {
+
+    function getLocalNumber(header) {
+        return header & 0b00001111;
+    }
+    function setLocalNumber(header, number) {
+        return header + number;
+    }
+
+    function encode(args) {
+        let header = setLocalNumber(0b00000000, args.local_number);
+        if(args.type === 'definition') header |= 0b01000000;
+        if(args.type === 'data')       header |= 0b00000000;
+        return header;
+    }
+
+    function read(byte) {
+        const header_type  = nthBitToBool(byte, 7) ? 'timestamp' : 'normal';
+        const type         = nthBitToBool(byte, 6) ? 'definition' : 'data';
+        const local_number = getLocalNumber(byte); // bits 0-3, value 0-15
+
+        return { type, header_type, local_number };
+    }
+
+    return Object.freeze({ read, encode });
+}
+
 function Definition(args = {}) {
     const headerLength       = 1;
     const fixedContentLength = 6;
@@ -128,32 +152,46 @@ function Definition(args = {}) {
     const type               = 'definition';
 
     function numberToMessage(number) {
-        return Object.entries(messages)
-                     .filter(x => x[1].global_number === number)[0];
+        let res = Object.entries(messages)
+                        .filter(x => x[1].global_number === number)[0];
+        if(res === undefined) console.error(`message global number ${number} not found`);
+        return res;
     }
     function messageToNumber(message) {
-        return messages[message].global_number;
+        let res = messages[message].global_number;
+        if(res === undefined) console.error(`message name ${message} not found`);
+        return res;
+    }
+    function getLength(numberOfFields) {
+        return fixedContentLength + (numberOfFields * fieldLength);
+    }
+    function getDataMsgLength(fields) {
+        return headerLength + fields.reduce((acc, x) => acc + x.size, 0);
     }
 
-    function read(view) {
-        const header         = view.getUint8(0, true);
+    function read(view, start = 0) {
+        const header         = view.getUint8(start, true);
         const local_number   = header & 0b00001111;
-        const architecture   = view.getUint8(2, true);
-        const messageNumber  = view.getUint16(3, true);
+        const architecture   = view.getUint8(start+2, true);
+        const messageNumber  = view.getUint16(start+3, true);
         const message        = numberToMessage(messageNumber)[0];
-        const numberOfFields = view.getUint8(5, true);
+        const numberOfFields = view.getUint8(start+5, true);
+        const length         = getLength(numberOfFields);
 
         let fields = [];
-        let i = fixedContentLength;
+        let i = start + fixedContentLength;
 
         for(let f=0; f < numberOfFields; f++) {
             let fieldView = new DataView(view.buffer.slice(i, i + fieldLength));
-            fields.push(fieldDefinition.read(fieldView, message));
+            fields.push(fit.fieldDefinition.read(fieldView, message));
             i += fieldLength;
         }
 
-        return { type, message, local_number, fields };
+        const data_msg_length = getDataMsgLength(fields);
+
+        return { type, message, local_number, fields, length, data_msg_length };
     }
+
     function encode(definition) {
         const header         = 64 + definition.local_number;
         const numberOfFields = definition.fields
@@ -180,15 +218,17 @@ function Definition(args = {}) {
 
         return new Uint8Array(buffer);
     }
-    return Object.freeze({ read, encode });
+    return Object.freeze({ read, encode, numberToMessage, messageToNumber });
 }
 
 function FieldDefinition(args = {}) {
 
     function numberToField(message, number) {
         const messageFields = messages[message].fields;
-        return Object.entries(messageFields)
-                     .filter(x => x[1].number === number)[0];
+        let res = Object.entries(messageFields)
+                        .filter(x => x[1].number === number)[0];
+        if(res === undefined) console.error(`field number ${number} on message ${message} not found`);
+        return res;
     }
 
     function read(view, messageName) {
@@ -204,7 +244,7 @@ function FieldDefinition(args = {}) {
         throw new Error('Not Implemented!');
     }
 
-    return Object.freeze({ read, encode });
+    return Object.freeze({ read, encode, numberToField });
 }
 
 function Data() {
@@ -235,12 +275,13 @@ function Data() {
 
         return new Uint8Array(buffer);
     }
-    function read(view, definition) {
-        const header       = view.getUint8(0, true);
+
+    function read(definition, view, start = 0) {
+        const header       = view.getUint8(start, true);
         const local_number = header & 0b00001111;
         const message      = definition.message;
 
-        let index = headerLength;
+        let index = start + headerLength;
         let fields = {};
 
         definition.fields.forEach((fieldDef) => {
@@ -263,70 +304,64 @@ function Activity() {
 
     function encode(definitions, values) {
     }
+
     function read(view) {
+        const fitFileHeader = fit.fileHeader.read(view);
+        const fileLength    = view.byteLength;
 
-    //     while(i < fileLength) {
-    //         try {
-    //             let currentByte = view.getUint8(i, true);
-    //             let header = readHeader(currentByte);
+        let i              = fitFileHeader.length;
+        let records        = [fitFileHeader];
+        let dataMsg        = {};
+        let definitionMsgs = {};
+        let definitionMsg  = {};
 
-    //             if(isDefinitionHeader(header)) {
-    //                 definition = readDefinition(view, i);
-    //                 definitions[definition.local_number] = definition;
-    //                 records.push(definition);
-    //                 i += definition.length;
-    //             }
-    //             if(isDataHeader(header)) {
-    //                 if(i > (fileLength - definition.dataRecordLength)) {
-    //                     break;
-    //                 }
-    //                 definition = definitions[readLocalMsgNumber(view.getUint8(i, true))];
-    //                 data = readData(view, i, definition);
-    //                 records.push(data);
-    //                 i += data.length;
-    //             }
-    //         } catch(e) {
-    //             break;
-    //         }
-    //     }
+        while(i < fileLength) {
+            try {
+                let currentByte = view.getUint8(i, true);
+                let msgHeader = fit.header.read(currentByte);
+                if(msgHeader.type === 'definition') {
+                    definitionMsg = fit.definition.read(view, i);
+                    definitionMsgs[definitionMsg.local_number] = definitionMsg;
+                    records.push(definitionMsg);
+                    i += definitionMsg.length;
+                }
+                if(msgHeader.type === 'data') {
+                    if(i > (fileLength - definitionMsg.data_msg_length)) {
+                        if((fileLength - i) === 2) {
+                            console.log(`break: ${i}/${fileLength}`);
+                        } else {
+                            console.warn(`break: ${i}/${fileLength}`);
+                        }
+                        break;
+                    }
+                    definitionMsg = definitionMsgs[msgHeader.local_number];
+                    dataMsg = fit.data.read(definitionMsg, view, i);
+                    records.push(dataMsg);
+                    i += definitionMsg.data_msg_length;
+                }
+            } catch(e) {
+                console.error(`error ${i}/${fileLength}`, e);
+                break;
+            }
+        }
 
+        return records;
     }
 
     return Object.freeze({ read, encode });
 }
-
-function Header() {
-
-    function encode() {
-        return;
-    }
-    function read(byte) {
-        const type = 'definition';
-        const local_number = 0;
-
-        return {type, local_number};
-    }
-
-    return Object.freeze({ read, encode });
-}
-
-const fileHeader = FileHeader();
-const header = header();
-const definition = Definition();
-const fieldDefinition = FieldDefinition();
-const data = Data();
-const activity = Activity();
 
 const fit = {
-    fileHeader,
-    header,
-    definition,
-    fieldDefinition,
-    data,
-    activity
+    fileHeader: FileHeader(),
+    header: Header(),
+    definition: Definition(),
+    fieldDefinition: FieldDefinition(),
+    data: Data(),
+    activity: Activity()
 };
 
 const _ = { calculateCRC, typeToAccessor };
 
 export { _ , fit };
+
 

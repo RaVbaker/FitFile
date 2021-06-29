@@ -84,46 +84,61 @@ describe('reads fit file header', () => {
         let view         = new DataView(headerBuffer);
 
         let header = fit.fileHeader.read(view);
+        //  header = {type: 'header', length: 14, protocolVersion: '2.0', profileVersion: '21.40', dataRecordsLength: 39}
 
-        // header = {type: 'header', length: 14, protocolVersion: '2.0', profileVersion: '21.40', dataRecordsLength: 39}
+        test('reads header', () => {
+            expect(header).toEqual({
+                type: 'header',
+                length: 14,
+                protocolVersion: '2.0',
+                profileVersion: '21.40',
+                dataRecordsLength: 39,
+                crc: 50555}); // getUint16(new Uint8Array([123, 197]))
 
-        test('type is header', () => {
-            expect(header.type).toBe('header');
-        });
-        test('reads length', () => {
-            expect(header.length).toBe(14);
-        });
-        test('reads protocol version', () => {
-            expect(header.protocolVersion).toBe("2.0");
-        });
-        test('reads profile version', () => {
-            expect(header.profileVersion).toBe("21.40");
-        });
-        test('reads data records length', () => {
-            expect(header.dataRecordsLength).toBe(39);
         });
     });
 
     describe('Zwift (legacy) header', () => {
-        let headerBuffer = new Uint8Array([12,16,100, 0,241,118, 2, 0, 46, 70, 73, 84, 65]).buffer;
+        let headerBuffer = new Uint8Array([12,16,100, 0,241,118, 2, 0, 46, 70, 73, 84]).buffer;
         let view         = new DataView(headerBuffer);
 
         let header = fit.fileHeader.read(view);
 
-        test('type is header', () => {
-            expect(header.type).toBe('header');
+        expect(header).toEqual({
+            type: 'header',
+            length: 12,
+            protocolVersion: '1.0',
+            profileVersion: '1.00',
+            dataRecordsLength: 161521,
+            crc: false});
+    });
+});
+
+describe('reads message header', () => {
+
+    describe('definition header', () => {
+        let header  = fit.header.read(64); // 0b01000000
+        let header1 = fit.header.read(65); // 0b01000001
+
+        test('reads type', () => {
+            expect(header).toEqual({type: 'definition', header_type: 'normal', local_number: 0});
         });
-        test('reads length', () => {
-            expect(header.length).toBe(12);
+
+        test('reads local message number', () => {
+            expect(header1).toEqual({type: 'definition', header_type: 'normal', local_number: 1});
         });
-        test('reads protocol version', () => {
-            expect(header.protocolVersion).toBe("1.0");
+    });
+
+    describe('data header', () => {
+        let header  = fit.header.read(0); // 0b00000000
+        let header1 = fit.header.read(1); // 0b00000001
+
+        test('reads type', () => {
+            expect(header).toEqual({type: 'data', header_type: 'normal', local_number: 0});
         });
-        test('reads profile version', () => {
-            expect(header.profileVersion).toBe("1.00");
-        });
-        test('reads data records length', () => {
-            expect(header.dataRecordsLength).toBe(161521);
+
+        test('reads local message number', () => {
+            expect(header1).toEqual({type: 'data', header_type: 'normal', local_number: 1});
         });
     });
 });
@@ -145,34 +160,36 @@ describe('reads File Id definition message', () => {
     });
 
     test('field time created', () => {
-        expect(res.fields[0].field).toBe('time_created');
-        expect(res.fields[0].number).toBe(4);
-        expect(res.fields[0].size).toBe(4);
-        expect(res.fields[0].base_type).toBe(134);
+        expect(res.fields[0]).toEqual({field: 'time_created', number: 4, size: 4, base_type: 134});
     });
     test('field manufacturer', () => {
-        expect(res.fields[1].field).toBe('manufacturer');
-        expect(res.fields[1].number).toBe(1);
-        expect(res.fields[1].size).toBe(2);
-        expect(res.fields[1].base_type).toBe(132);
+        expect(res.fields[1]).toEqual({field: 'manufacturer', number: 1, size: 2, base_type: 132});
     });
     test('field product', () => {
-        expect(res.fields[2].field).toBe('product');
-        expect(res.fields[2].number).toBe(2);
-        expect(res.fields[2].size).toBe(2);
-        expect(res.fields[2].base_type).toBe(132);
+        expect(res.fields[2]).toEqual({field: 'product', number: 2, size: 2, base_type: 132});
     });
     test('field number', () => {
-        expect(res.fields[3].field).toBe('number');
-        expect(res.fields[3].number).toBe(5);
-        expect(res.fields[3].size).toBe(2);
-        expect(res.fields[3].base_type).toBe(132);
+        expect(res.fields[3]).toEqual({field: 'number', number: 5, size: 2, base_type: 132});
     });
     test('field type', () => {
-        expect(res.fields[4].field).toBe('type');
-        expect(res.fields[4].number).toBe(0);
-        expect(res.fields[4].size).toBe(1);
-        expect(res.fields[4].base_type).toBe(0);
+        expect(res.fields[4]).toEqual({field: 'type', number: 0, size: 1, base_type: 0});
+    });
+
+    test('reads File id', () => {
+        expect(res).toEqual({
+            type: 'definition',
+            message: 'file_id',
+            local_number: 0,
+            length: 21,
+            data_msg_length: 12,
+            fields: [
+                {field: 'time_created', number: 4, size: 4, base_type: 134},
+                {field: 'manufacturer', number: 1, size: 2, base_type: 132},
+                {field: 'product',      number: 2, size: 2, base_type: 132},
+                {field: 'number',       number: 5, size: 2, base_type: 132},
+                {field: 'type',         number: 0, size: 1, base_type: 0}
+            ]
+        });
     });
 
 });
@@ -182,6 +199,8 @@ describe('encodes File Id definition message', () => {
         type: 'definition',
         message: 'file_id',
         local_number: 0,
+        length: 21,
+        data_msg_length: 12,
         fields: [
             {field: 'time_created', number: 4, size: 4, base_type: 134},
             {field: 'manufacturer', number: 1, size: 2, base_type: 132},
@@ -240,6 +259,8 @@ describe('encodes File Id data message', () => {
         type: 'definition',
         message: 'file_id',
         local_number: 0,
+        length: 21,
+        data_msg_length: 12,
         fields: [
             {field: 'time_created', number: 4, size: 4, base_type: 134},
             {field: 'manufacturer', number: 1, size: 2, base_type: 132},
@@ -300,20 +321,22 @@ describe('reads File Id data message', () => {
         type: 'definition',
         message: 'file_id',
         local_number: 0,
+        length: 21,
+        data_msg_length: 12,
         fields: [
             {field: 'time_created', number: 4, size: 4, base_type: 134},
             {field: 'manufacturer', number: 1, size: 2, base_type: 132},
             {field: 'product',      number: 2, size: 2, base_type: 132},
             {field: 'number',       number: 5, size: 2, base_type: 132},
             {field: 'type',         number: 0, size: 1, base_type: 0},
-        ]
+        ],
     };
 
 
     let uint8Array = new Uint8Array([0, 138, 26, 40, 59, 4, 1, 0, 0, 0, 0, 4]);
     let view = new DataView(uint8Array.buffer);
 
-    let res = fit.data.read(view, fileIdDefinition);
+    let res = fit.data.read(fileIdDefinition, view);
 
     //  res = {
     //     type: 'data',
@@ -365,11 +388,11 @@ describe('reads Minimal FIT file', () => {
         // data file id
         [0, 138, 26, 40, 59, 4, 1, 0, 0, 0, 0, 4],
         // definition record
-        [65, 0, 0, 20, 0, 2,  254,4,134, 7,2,132],
+        [65, 0, 0, 20,0, 2,  253,4,134, 7,2,132],
         // data record
         [1, 138, 26, 40, 59, 44, 1],
         // crc
-        [247, 196]
+        [133, 21]
     ];
     let recordsLength = records.flat().length;
 
@@ -386,17 +409,26 @@ describe('reads Minimal FIT file', () => {
         });
     });
 
+    describe('activity length', () => {
+        test('length', () => {
+            expect(activity.length).toBe(5);
+        });
+    });
+
     describe('reads minimal activity', () => {
         test('header', () => {
-            expect(activity[0]).toEqual({type: 'header',
-                                      length: 14,
-                                      protocolVersion: '2.0',
-                                      profileVersion: '21.40',
-                                      dataRecordsLength: 39});
+            expect(activity[0]).toEqual({
+                type: 'header',
+                length: 14,
+                protocolVersion: '2.0',
+                profileVersion: '21.40',
+                dataRecordsLength: 39,
+                crc: 50555});
         });
         test('definition file id', () => {
             expect(activity[1]).toEqual({
-                type: 'definition', message: 'file_id', local_number: 0, fields: [
+                type: 'definition', message: 'file_id', local_number: 0,
+                length: 21, data_msg_length: 12, fields: [
                     {field: 'time_created', number: 4, size: 4, base_type: 134},
                     {field: 'manufacturer', number: 1, size: 2, base_type: 132},
                     {field: 'product',      number: 2, size: 2, base_type: 132},

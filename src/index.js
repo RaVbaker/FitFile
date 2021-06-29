@@ -1,6 +1,5 @@
 import { fileHandler } from './file.js';
-import { fix } from './fit/encode.js';
-import { decode } from './fit/decode.js';
+import { fit } from './fit/fit.js';
 
 
 
@@ -24,14 +23,13 @@ async function onUpload(e) {
 
     let blob = e.target.files[0];
     fileName = blob.name;
-    console.log(blob.name);
     let file = await fileHandler.read(blob);
+    console.log(`${blob.name}, ${file.byteLength} bytes`);
 
-    let records = decode(file);
+    let view = new DataView(file);
+
+    let records = fit.activity.read(view);
     console.log(records);
-    fixedFile = fix(file, records);
-
-    console.log(fixedFile);
 
     pendingIcon.style.display = 'none';
 
