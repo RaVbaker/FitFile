@@ -3,12 +3,12 @@ import { fit } from './fit/fit.js';
 
 
 
-let fileBtn = document.getElementById('file-upload-btn');
+let fileBtn     = document.getElementById('file-upload-btn');
 let downloadBtn = document.getElementById('file-download-btn');
-let idleIcon = document.getElementById('icon-state-idle');
+let idleIcon    = document.getElementById('icon-state-idle');
 let successIcon = document.getElementById('icon-state-success');
 let pendingIcon = document.getElementById('icon-state-pending');
-let errorIcon = document.getElementById('icon-state-error');
+let errorIcon   = document.getElementById('icon-state-error');
 
 fileBtn.addEventListener('change', onUpload);
 downloadBtn.addEventListener('pointerup', onDownload);
@@ -28,8 +28,9 @@ async function onUpload(e) {
 
     let view = new DataView(file);
 
-    let records = fit.activity.read(view);
-    console.log(records);
+    let activity = fit.activity.read(view);
+    console.log(activity);
+    fixedFile = fit.fixer.fix(view, activity);
 
     pendingIcon.style.display = 'none';
 

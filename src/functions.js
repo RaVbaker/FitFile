@@ -91,15 +91,23 @@ function last(xs) {
 }
 
 function getIn(...args) {
-    let [collection, ...keys] = args;
-    return keys.reduce((acc, key) => {
+    let [collection, ...path] = args;
+    return path.reduce((acc, key) => {
         if(acc[key]) return acc[key];
-        console.warn(`:getIn 'no such key' :key ${key} :acc `, acc);
+        console.warn(`:getIn 'no such key' :key ${key}`);
         return undefined;
     }, collection);
 }
 
-// Util
+function map(coll, fn) {
+    if(isArray(coll)) return coll.map(fn);
+    if(isObject(coll)) {
+        return Object.fromEntries(
+            Object.entries(coll).map(([k, v], i) => [k, (fn(v, k, i))]));
+    }
+    throw new Error(`map called with unkown collection `, coll);
+}
+
 const repeat = n => f => x => {
     if (n > 0)
         return repeat (n - 1) (f) (f (x));
@@ -107,6 +115,7 @@ const repeat = n => f => x => {
         return x;
 };
 
+// Util
 function timestampDiff(timestamp1, timestamp2) {
     let difference = (timestamp1 / 1000) - (timestamp2 / 1000);
     return Math.round(Math.abs(difference));
@@ -192,9 +201,10 @@ export {
     last,
     empty,
     getIn,
+    map,
+    repeat,
 
     // Util
-    repeat,
     timestampDiff,
     toFitTimestamp,
     toJsTimestamp,

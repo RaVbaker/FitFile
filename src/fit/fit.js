@@ -1,5 +1,7 @@
-import { nthBitToBool } from '../functions.js';
+import { exists, map, first, last, nthBitToBool, toUint8Array } from '../functions.js';
 import { messages, basetypes } from './profiles.js';
+
+
 
 function calculateCRC(uint8array, start, end) {
     const crcTable = [
@@ -65,13 +67,23 @@ function FileHeader(args = {}) {
     function readProfileVersion(code) {
         return (code / 100).toFixed(2);
     }
+    function readFileType(view) {
+        const charCodes = [
+            view.getUint8( 8, true),
+            view.getUint8( 9, true),
+            view.getUint8(10, true),
+            view.getUint8(11, true)];
+
+        return charCodes.reduce((acc, n) => acc+String.fromCharCode(n), '');
+    }
 
     function read(view) {
         const type                = 'header';
-        const length              = view.getUint8(0, true);
-        const protocolVersionCode = view.getUint8(1, true);
+        const length              = view.getUint8( 0, true);
+        const protocolVersionCode = view.getUint8( 1, true);
         const profileVersionCode  = view.getUint16(2, true);
-        const dataRecordsLength   = view.getInt32(4, true);
+        const dataRecordsLength   = view.getInt32( 4, true);
+        const fileType            = readFileType(view);
         const crc                 = (length === default_size) ? view.getUint16(crcIndex(length), true) : false;
 
         const protocolVersion = readProtocolVersion(protocolVersionCode);
@@ -82,6 +94,7 @@ function FileHeader(args = {}) {
             protocolVersion,
             profileVersion,
             dataRecordsLength,
+            fileType,
             crc,
             length
         };
@@ -93,7 +106,7 @@ function FileHeader(args = {}) {
         const protocolVersion   = 32;               // 16 v1, 32 v2
         const profileVersion    = 2140;             // v21.40
         const dataTypeByte      = [46, 70, 73, 84]; // ASCII values for ".FIT"
-        const crc               = 0x0000;           // default value for optional crc of the header of bytes 0-11
+        let crc                 = 0x0000;           // default value for optional crc of the header of bytes 0-11
 
         let buffer   = new ArrayBuffer(length);
         let view     = new DataView(buffer);
@@ -107,7 +120,7 @@ function FileHeader(args = {}) {
         view.setUint8(10, dataTypeByte[2],   true);
         view.setUint8(11, dataTypeByte[3],   true);
 
-        crc = calculateCRC(view.buffer, 0, crcIndex(length));
+        crc = calculateCRC(new Uint8Array(view.buffer), 0, crcIndex(length));
 
         view.setUint16(crcIndex(length), crc, true);
 
@@ -296,6 +309,16 @@ function Data() {
     return Object.freeze({ read, encode });
 }
 
+function CRC() {
+
+    function read(view, i = 0) {
+        let value = view.getUint16(i, true);
+        return {type: 'crc', value: value};
+    }
+
+    return Object.freeze({ read });
+}
+
 function Activity() {
     const headerLength = 1;
     const fileHeaderLength = 14;
@@ -319,6 +342,15 @@ function Activity() {
             try {
                 let currentByte = view.getUint8(i, true);
                 let msgHeader = fit.header.read(currentByte);
+
+                if(i > (fileLength - definitionMsg.data_msg_length)) {
+                    if((fileLength - i) === 2) {
+                        records.push(fit.crc.read(view, i));
+                    } else {
+                        console.warn(`break: ${i}/${fileLength}`);
+                    }
+                    break;
+                }
                 if(msgHeader.type === 'definition') {
                     definitionMsg = fit.definition.read(view, i);
                     definitionMsgs[definitionMsg.local_number] = definitionMsg;
@@ -326,14 +358,6 @@ function Activity() {
                     i += definitionMsg.length;
                 }
                 if(msgHeader.type === 'data') {
-                    if(i > (fileLength - definitionMsg.data_msg_length)) {
-                        if((fileLength - i) === 2) {
-                            console.log(`break: ${i}/${fileLength}`);
-                        } else {
-                            console.warn(`break: ${i}/${fileLength}`);
-                        }
-                        break;
-                    }
                     definitionMsg = definitionMsgs[msgHeader.local_number];
                     dataMsg = fit.data.read(definitionMsg, view, i);
                     records.push(dataMsg);
@@ -351,16 +375,82 @@ function Activity() {
     return Object.freeze({ read, encode });
 }
 
+function Summary() {
+
+    function getDataRecords(records) {
+        return records.filter(isDataRecord);
+    }
+    function isDataRecord(record) {
+        if(exists(record.type) && exists(record.message)) {
+            return (record.type === 'data') && (record.message === 'record');
+        }
+        return false;
+    }
+    function accumulate(acc, record) {
+        acc.power     += record.fields.power;
+        acc.cadence   += record.fields.cadence;
+        acc.speed     += record.fields.speed;
+        acc.heartRate += record.fields.heart_rate;
+        return acc;
+    }
+    function devideByCount(coll) {
+        return function(acc) {
+            return Math.floor(acc / coll.length);
+        };
+    }
+    function average(dataRecords) {
+        let avgs = {power: 0, cadence: 0, speed: 0, heartRate: 0};
+        return map(dataRecords.reduce(accumulate, avgs), devideByCount(dataRecords));
+    }
+    function calculate(activity) {
+        const dataRecords = getDataRecords(activity);
+
+        let res       = average(dataRecords);
+        res.distance  = last(dataRecords).fields.distance;
+        res.timeStart = first(dataRecords).fields.timestamp;
+        res.timeEnd   = last(dataRecords).fields.timestamp;
+        res.elapsed   = (res.timeEnd - res.timeStart) * 1000;
+
+        return res;
+    }
+
+    return { calculate, average, getDataRecords, isDataRecord };
+}
+
+function Fixer() {
+    function getRecordsLength(activity) {
+    }
+    function fix(view, activity, summary) {
+        let buffer     = new ArrayBuffer(view.byteLength + 2);
+        let fixedUint8 = new Uint8Array(buffer);
+        let fixedView  = new DataView(buffer);
+
+        view.setInt32(4, view.byteLength - activity[0].length, true);
+
+        fixedUint8.set(new Uint8Array(view.buffer), 0);
+
+        let crc = calculateCRC(fixedUint8, 0, fixedUint8.byteLength - 2);
+
+        fixedView.setUint16(fixedView.byteLength - 2, crc, true);
+
+        return fixedView;
+    }
+    return Object.freeze({ fix });
+}
+
 const fit = {
     fileHeader: FileHeader(),
+    crc: CRC(),
     header: Header(),
     definition: Definition(),
     fieldDefinition: FieldDefinition(),
     data: Data(),
-    activity: Activity()
+    summary: Summary(),
+    activity: Activity(),
+    fixer: Fixer(),
 };
 
-const _ = { calculateCRC, typeToAccessor };
+const _ = { typeToAccessor };
 
 export { _ , fit };
 
