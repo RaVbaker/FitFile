@@ -52,12 +52,12 @@ function typeToAccessor(basetype, method = 'set') {
 }
 
 function FileHeader(args = {}) {
-    const default_size = 14;
-    const legacy_size  = 12;
-    const crc_length   = 2;
+    const defaultSize = 14;
+    const legacySize  = 12;
+    const crcLength   = 2;
 
     function crcIndex(length) {
-        return length - crc_length;
+        return length - crcLength;
     }
     function readProtocolVersion(code) {
         if(code === 32) return '2.0';
@@ -84,7 +84,7 @@ function FileHeader(args = {}) {
         const profileVersionCode  = view.getUint16(2, true);
         const dataRecordsLength   = view.getInt32( 4, true);
         const fileType            = readFileType(view);
-        const crc                 = (length === default_size) ? view.getUint16(crcIndex(length), true) : false;
+        const crc                 = (length === defaultSize) ? view.getUint16(crcIndex(length), true) : false;
 
         const protocolVersion = readProtocolVersion(protocolVersionCode);
         const profileVersion  = readProfileVersion(profileVersionCode);
@@ -101,8 +101,8 @@ function FileHeader(args = {}) {
     };
 
     function encode(args) {
-        const length            = default_size;
-        const dataRecordsLength = args.fileLength - length - crc_length; // without header and crc
+        const length            = defaultSize;
+        const dataRecordsLength = args.fileLength - length - crcLength; // without header and crc
         const protocolVersion   = 32;               // 16 v1, 32 v2
         const profileVersion    = 2140;             // v21.40
         const dataTypeByte      = [46, 70, 73, 84]; // ASCII values for ".FIT"
@@ -138,6 +138,12 @@ function Header() {
     function setLocalNumber(header, number) {
         return header + number;
     }
+    function isDefinition(header) {
+        return (header.type === 'definition');
+    }
+    function isData(header) {
+        return (header.type === 'data');
+    }
 
     function encode(args) {
         let header = setLocalNumber(0b00000000, args.local_number);
@@ -154,7 +160,7 @@ function Header() {
         return { type, header_type, local_number };
     }
 
-    return Object.freeze({ read, encode });
+    return Object.freeze({ read, encode, isDefinition, isData });
 }
 
 function Definition(args = {}) {
@@ -335,33 +341,40 @@ function Activity() {
         let i              = fitFileHeader.length;
         let records        = [fitFileHeader];
         let dataMsg        = {};
-        let definitionMsgs = {};
-        let definitionMsg  = {};
+        let definitions = {};
+        let definition  = {};
+
+        function isLastMessage(definition, i) {
+            return (i > (fileLength - definition.data_msg_length));
+        }
+        function isCRC(i) {
+            return (fileLength - i) === crcLength;
+        }
 
         while(i < fileLength) {
             try {
                 let currentByte = view.getUint8(i, true);
-                let msgHeader = fit.header.read(currentByte);
+                let header = fit.header.read(currentByte);
 
-                if(i > (fileLength - definitionMsg.data_msg_length)) {
-                    if((fileLength - i) === 2) {
+                if(isLastMessage(definition, i)) {
+                    if(isCRC(i)) {
                         records.push(fit.crc.read(view, i));
                     } else {
                         console.warn(`break: ${i}/${fileLength}`);
                     }
                     break;
                 }
-                if(msgHeader.type === 'definition') {
-                    definitionMsg = fit.definition.read(view, i);
-                    definitionMsgs[definitionMsg.local_number] = definitionMsg;
-                    records.push(definitionMsg);
-                    i += definitionMsg.length;
+                if(fit.header.isDefinition(header)) {
+                    definition = fit.definition.read(view, i);
+                    definitions[definition.local_number] = definition;
+                    records.push(definition);
+                    i += definition.length;
                 }
-                if(msgHeader.type === 'data') {
-                    definitionMsg = definitionMsgs[msgHeader.local_number];
-                    dataMsg = fit.data.read(definitionMsg, view, i);
+                if(fit.header.isData(header)) {
+                    definition = definitions[header.local_number];
+                    dataMsg = fit.data.read(definition, view, i);
                     records.push(dataMsg);
-                    i += definitionMsg.data_msg_length;
+                    i += definition.data_msg_length;
                 }
             } catch(e) {
                 console.error(`error ${i}/${fileLength}`, e);
@@ -409,7 +422,7 @@ function Summary() {
         res.distance  = last(dataRecords).fields.distance;
         res.timeStart = first(dataRecords).fields.timestamp;
         res.timeEnd   = last(dataRecords).fields.timestamp;
-        res.elapsed   = (res.timeEnd - res.timeStart) * 1000;
+        res.elapsed   = (res.timeEnd - res.timeStart); // maybe * 1000;
 
         return res;
     }
@@ -420,6 +433,7 @@ function Summary() {
 function Fixer() {
     function getRecordsLength(activity) {
     }
+
     function fix(view, activity, summary) {
         let buffer     = new ArrayBuffer(view.byteLength + 2);
         let fixedUint8 = new Uint8Array(buffer);
@@ -435,6 +449,7 @@ function Fixer() {
 
         return fixedView;
     }
+
     return Object.freeze({ fix });
 }
 
