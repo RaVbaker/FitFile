@@ -1,5 +1,6 @@
 import { nthBit, getUint16, getUint32 } from '../src/functions.js';
-import { app_types } from '../src/fit/profiles.js';
+import { appTypes, localMessageDefinitions as lmd } from '../src/fit/profiles.js';
+import { data } from './data.js';
 import { _, fit } from '../src/fit/fit.js';
 
 
@@ -207,22 +208,7 @@ describe('reads File Id definition message', () => {
 });
 
 describe('encodes File Id definition message', () => {
-    const fileIdDefinition = {
-        type: 'definition',
-        message: 'file_id',
-        local_number: 0,
-        length: 21,
-        data_msg_length: 12,
-        fields: [
-            {field: 'time_created', number: 4, size: 4, base_type: 134},
-            {field: 'manufacturer', number: 1, size: 2, base_type: 132},
-            {field: 'product',      number: 2, size: 2, base_type: 132},
-            {field: 'number',       number: 5, size: 2, base_type: 132},
-            {field: 'type',         number: 0, size: 1, base_type: 0},
-        ]
-    };
-
-    let res = fit.definition.encode(fileIdDefinition);
+    let res = fit.definition.encode(lmd.fileId);
     //  res = new Uint8Array([64, 0, 0, 0,0, 5,  4,4,134  , 1,2,132  , 2,2,132  , 5,2,132  , 0,1,0]);
 
     describe('definition messege header (byte 0)', () => {
@@ -265,26 +251,10 @@ describe('encodes File Id definition message', () => {
 });
 
 describe('reads File Id data message', () => {
-    const fileIdDefinition = {
-        type: 'definition',
-        message: 'file_id',
-        local_number: 0,
-        length: 21,
-        data_msg_length: 12,
-        fields: [
-            {field: 'time_created', number: 4, size: 4, base_type: 134},
-            {field: 'manufacturer', number: 1, size: 2, base_type: 132},
-            {field: 'product',      number: 2, size: 2, base_type: 132},
-            {field: 'number',       number: 5, size: 2, base_type: 132},
-            {field: 'type',         number: 0, size: 1, base_type: 0},
-        ],
-    };
-
-
     let uint8Array = new Uint8Array([0, 138, 26, 40, 59, 4, 1, 0, 0, 0, 0, 4]);
     let view = new DataView(uint8Array.buffer);
 
-    let res = fit.data.read(fileIdDefinition, view);
+    let res = fit.data.read(lmd.fileId, view);
     //  res = {
     //     type: 'data',
     //     message: 'file_id',
@@ -327,21 +297,6 @@ describe('reads File Id data message', () => {
 });
 
 describe('encodes File Id data message', () => {
-    const fileIdDefinition = {
-        type: 'definition',
-        message: 'file_id',
-        local_number: 0,
-        length: 21,
-        data_msg_length: 12,
-        fields: [
-            {field: 'time_created', number: 4, size: 4, base_type: 134},
-            {field: 'manufacturer', number: 1, size: 2, base_type: 132},
-            {field: 'product',      number: 2, size: 2, base_type: 132},
-            {field: 'number',       number: 5, size: 2, base_type: 132},
-            {field: 'type',         number: 0, size: 1, base_type: 0},
-        ]
-    };
-
     const values = {
         time_created: 992483978,
         manufacturer: 260,
@@ -350,7 +305,7 @@ describe('encodes File Id data message', () => {
         type:         4
     };
 
-    let res = fit.data.encode(fileIdDefinition, values);
+    let res = fit.data.encode(lmd.fileId, values);
     //  res = new Uint8Array([0, 138, 26, 40, 59, 4, 1, 0, 0, 0, 0, 4]);
 
     describe('data messege header (byte 0)', () => {
@@ -390,44 +345,67 @@ describe('encodes File Id data message', () => {
 
 describe('encodes Footer', () => {
     const summary = {
-        power: 292,
-        cadence: 84,
-        speed: 9258,
-        heartRate: 150,
-        distance: 2941,
+        power:     {avg:  292, max: 300},
+        cadence:   {avg:   84, max: 86},
+        speed:     {avg: 9258, max: 9589},
+        heartRate: {avg:  150, max: 150},
+        distance:  2941,
         timeStart: 965747728,
-        timeEnd: 965747731,
-        elapsed: 3,
+        timeEnd:   965747731,
+        elapsed:   3,
     };
 
-    // 965747728 -> 16,36,144,57,
-    // 965747729 -> 17,36,144,57,
-    // 965747730 -> 18,36,144,57,
-    // 965747731 -> 19,36,144,57,
+    const values = {
+        event: {
+            timestamp:   summary.timeEnd,
+            event:       appTypes.event.values.timer,
+            event_type:  appTypes.event_type.values.stop_all,
+            event_group: 0,
+        },
+        lap: {
+            timestamp:          summary.timeEnd,
+            start_time:         summary.timeStart,
+            total_elapsed_time: summary.elapsed,
+            total_timer_time:   summary.elapsed,
+            message_index:      0,
+            event:              appTypes.event.values.lap,
+            event_type:         appTypes.event_type.values.stop,
+            event_group:        0,
+            lap_trigger:        appTypes.lap_trigger.values.manual,
+        },
+        session: {
+            timestamp:          summary.timeEnd,
+            start_time:         summary.timeStart,
+            total_elapsed_time: summary.elapsed,
+            total_timer_time:   summary.elapsed,
+            message_index:      0,
+            first_lap_index:    0,
+            num_laps:           1,
+            sport:              appTypes.sport.values.cycling,
+            sub_sport:          appTypes.sub_sport.values.virtual_activity,
+            avg_power:          summary.power.avg,
+            max_power:          summary.power.max,
+            avg_cadence:        summary.cadence.avg,
+            max_cadence:        summary.cadence.max,
+            avg_speed:          summary.speed.avg,
+            max_speed:          summary.speed.max,
+            avg_heart_rate:     summary.heartRate.avg,
+            max_heart_rate:     summary.heartRate.max,
+            total_distance:     summary.distance,
+        },
+        activity: {
+            timestamp:       summary.timeEnd,
+            local_timestamp: summary.timeEnd,
+            num_sessions:    1,
+            type:            appTypes.activity.values.manual,
+            event:           appTypes.event.values.activity,
+            event_type:      appTypes.event_type.values.stop,
+            event_group:     0,
+        }
+    };
 
     describe('encodes event message', () => {
-        const eventDefinition = {
-            type: 'definition',
-            message: 'event',
-            local_number: 3,
-            length: 6+12,
-            data_msg_length: 1+22,
-            fields: [
-                {field: 'timestamp',   number: 253, size: 4, base_type: 134},
-                {field: 'event',       number:   0, size: 1, base_type: 0},
-                {field: 'event_type',  number:   1, size: 1, base_type: 0},
-                {field: 'event_group', number:  26, size: 1, base_type: 2},
-            ]
-        };
-
-        const values = {
-            timestamp:   summary.timeEnd,
-            event:       app_types.event.values.timer, // 0
-            event_type:  app_types.event_type.values.stop_all,  // 4
-            event_group: 0,
-        };
-
-        let event = fit.data.encode(eventDefinition, values);
+        let event = fit.data.encode(lmd.event, values.event);
 
         let res = [3,  19,36,144,57,  0, 4, 0];
         let view = new DataView(event.buffer);
@@ -442,38 +420,7 @@ describe('encodes Footer', () => {
     });
 
     describe('encodes lap message', () => {
-        const lapDefinition = {
-            type: 'definition',
-            message: 'lap',
-            local_number: 4,
-            length: 6+28,
-            data_msg_length: 1+22,
-            fields: [
-                {field: 'timestamp',          number: 253, size: 4, base_type: 134},
-                {field: 'start_time',         number:   2, size: 4, base_type: 134},
-                {field: 'total_elapsed_time', number:   7, size: 4, base_type: 134},
-                {field: 'total_timer_time',   number:   8, size: 4, base_type: 134},
-                {field: 'message_index',      number: 254, size: 2, base_type: 132},
-                {field: 'event',              number:   0, size: 1, base_type: 0},
-                {field: 'event_type',         number:   1, size: 1, base_type: 0},
-                {field: 'event_group',        number:  26, size: 1, base_type: 2},
-                {field: 'lap_trigger',        number:  24, size: 1, base_type: 2},
-            ]
-        };
-
-        const values = {
-            timestamp:          summary.timeEnd,
-            start_time:         summary.timeStart,
-            total_elapsed_time: summary.elapsed,
-            total_timer_time:   summary.elapsed,
-            message_index:      0,
-            event:              app_types.event.values.lap, // 9
-            event_type:         app_types.event_type.values.stop,  // 1
-            event_group:        0,
-            lap_trigger:        app_types.lap_trigger.values.manual, // 0
-        };
-
-        let lap = fit.data.encode(lapDefinition, values);
+        let lap = fit.data.encode(lmd.lap, values.lap);
 
         let res = [4,  19,36,144,57,  16,36,144,57,  3,0,0,0,  3,0,0,0,  0,0, 9, 1, 0, 0];
         let view = new DataView(lap.buffer);
@@ -493,43 +440,72 @@ describe('encodes Footer', () => {
     });
 
     describe('encodes session message', () => {
-        const sessionDefinition = {
-            type: 'definition',
-            message: 'session',
-            local_number: 5,
-            length: 6+12,
-            data_msg_length: 1+16,
-            fields: [
-                {field: 'timestamp',          number: 253, size: 4, base_type: 134},
-                {field: 'start_time',         number:   2, size: 4, base_type: 134},
-                {field: 'total_elapsed_time', number:   7, size: 4, base_type: 134},
-                {field: 'total_timer_time',   number:   8, size: 4, base_type: 134},
-            ]
-        };
+        let session = fit.data.encode(lmd.session, values.session);
 
-        const values = {
-            timestamp:          summary.timeEnd,
-            start_time:         summary.timeStart,
-            total_elapsed_time: summary.elapsed,
-            total_timer_time:   summary.elapsed,
-        };
-
-        let session = fit.data.encode(sessionDefinition, values);
-
-        let res = [5,  19,36,144,57,  16,36,144,57,  3,0,0,0,  3,0,0,0];
+        let res = [5,  19,36,144,57,  16,36,144,57,  3,0,0,0,  3,0,0,0,
+                   0,0,  0,0,  1,0,  2,  58,
+                   36,1,  44,1,  84, 86,  42,36,  117,37,  150, 150,  125,11,0,0];
         let view = new DataView(session.buffer);
 
         test('session message', () => {
             expect(Array.from(session)).toStrictEqual(res);
 
-            expect(view.getUint32(1, true)).toBe(965747731);
-            expect(view.getUint32(5, true)).toBe(965747728);
-            expect(view.getUint32(9, true)).toBe(3);
-            expect(view.getUint32(13, true)).toBe(3);
-
-            // expect(view.getUint8(_, true)).toBe(0);
+            expect(view.getUint32( 1, true)).toBe(965747731); // timestamp
+            expect(view.getUint32( 5, true)).toBe(965747728); // start time
+            expect(view.getUint32( 9, true)).toBe(3);         // total elapsed time
+            expect(view.getUint32(13, true)).toBe(3);         // total timer time
+            expect(view.getUint16(17, true)).toBe(0);         // message index
+            expect(view.getUint16(19, true)).toBe(0);         // first lap index
+            expect(view.getUint16(21, true)).toBe(1);         // num laps
+            expect(view.getUint8( 23, true)).toBe(2);         // sport
+            expect(view.getUint8( 24, true)).toBe(58);        // sub sport
+            expect(view.getUint16(25, true)).toBe(292);       // power avg
+            expect(view.getUint16(27, true)).toBe(300);       // power max
+            expect(view.getUint8( 29, true)).toBe(84);        // cadence avg
+            expect(view.getUint8( 30, true)).toBe(86);        // cadence max
+            expect(view.getUint16(31, true)).toBe(9258);      // speed avg
+            expect(view.getUint16(33, true)).toBe(9589);      // speed max
+            expect(view.getUint8( 35, true)).toBe(150);       // heart rate avg
+            expect(view.getUint8( 36, true)).toBe(150);       // heart rate max
+            expect(view.getUint32(37, true)).toBe(2941);      // distance
         });
     });
+
+    describe('encodes activity message', () => {
+        let activity = fit.data.encode(lmd.activity, values.activity);
+        let res = [6,  19,36,144,57,  19,36,144,57,  1,0,  0,  26,  1,  0];
+
+        test('activity message', () => {
+            expect(Array.from(activity)).toStrictEqual(res);
+        });
+    });
+
+    describe('encodes footer', () => {
+        let footer = fit.summary.toFooter(summary);
+        let res = [
+            // event
+            3,  19,36,144,57,  0, 4, 0,
+            // lap definition
+            // ...
+            // lap
+            4,  19,36,144,57,  16,36,144,57,  3,0,0,0,  3,0,0,0,  0,0, 9, 1, 0, 0,
+            // session definition
+            // ...
+            // session
+            5,  19,36,144,57,  16,36,144,57,  3,0,0,0,  3,0,0,0,
+            0,0,  0,0,  1,0,  2,  58,
+            36,1,  44,1,  84, 86,  42,36,  117,37,  150, 150,  125,11,0,0,
+            // activity definition
+            // ...
+            // activity
+            6,  19,36,144,57,  19,36,144,57,  1,0,  0,  26,  1,  0,
+        ];
+
+        test('footer length', () => {
+            expect(footer.byteLength).toBe(87);
+        });
+    });
+
 });
 
 describe('reads Minimal FIT file', () => {
@@ -603,38 +579,8 @@ describe('reads Minimal FIT file', () => {
     });
 });
 
-
 describe('makes summary', () => {
-    const activity = [
-    {type: "header", protocolVersion: "1.0", profileVersion: "1.00", dataRecordsLength: 161521, length: 12, crc: false},
-    {type: "definition", message: "file_id", local_number: 0, length: 24, data_msg_length: 16, fields: []},
-    {type: "data", message: "file_id", local_number: 0, fields: {}},
-    {type: "definition", message: "device_info", local_number: 1, length: 39, data_msg_length: 25, fields: []},
-    {type: "data", message: "device_info", local_number: 1, fields: {}},
-    {type: "definition", message: "record", local_number: 3, length: 51, data_msg_length: 37, fields: []},
-    {type: "definition", message: "event", local_number: 2, length: 24, data_msg_length: 14, fields: []},
-    {type: "data", message: "event", local_number: 2, fields: {}},
-    {type: "data", message: "record", local_number: 3, fields: {
-        timestamp: 965747728, power: 287, cadence: 83, speed: 8908, heart_rate: 150, distance: 103, altitude: 2565,
-        position_lat: -138807946, position_long: 1992069714, compressed_speed_distance: 255, cycle_length: 255,
-        grade: 32767, resistance: 255, temperature: 127, time_from_course: 2147483647}},
-
-    {type: "data", message: "record", local_number: 3, fields: {
-        timestamp: 965747729, power: 291, cadence: 85, speed: 9159, heart_rate: 150, distance: 1094, altitude: 2565,
-        position_lat: -138808926, position_long: 1992070093, compressed_speed_distance: 255, cycle_length: 255,
-        grade: 32767, resistance: 255, temperature: 127, time_from_course: 2147483647}},
-
-    {type: "data", message: "record", local_number: 3, fields: {
-        timestamp: 965747730, power: 290, cadence: 85, speed: 9379, heart_rate: 150, distance: 2014, altitude: 2565,
-        position_lat: -138809856, position_long:  1992070426, compressed_speed_distance: 255, cycle_length: 255,
-        grade: 32767, resistance: 255, temperature: 127, time_from_course: 2147483647}},
-
-    {type: "data", message: "record", local_number: 3, fields: {
-        timestamp: 965747731, power: 300, cadence: 86, speed: 9589, heart_rate: 150, distance: 2941, altitude: 2565,
-        position_lat: -138810762, position_long: 1992070836, compressed_speed_distance: 255, cycle_length: 255,
-        grade: 32767, resistance: 255, temperature: 127, time_from_course: 2147483647}},
-    ];
-
+    const activity = data.activity;
 
     test('is data records', () => {
         expect(fit.summary.isDataRecord({})).toBe(false);
@@ -648,23 +594,29 @@ describe('makes summary', () => {
         expect(fit.summary.getDataRecords(activity).length).toBe(4);
     });
 
-    test('calculates avarage values', () => {
+    test('calculates accumulated values', () => {
         let dataRecords = fit.summary.getDataRecords(activity);
-        let res = {power: 292, cadence: 84, speed: 9258, heartRate: 150};
-        expect(fit.summary.average(dataRecords)).toEqual(res);
+
+        let res = {power:     {avg:  292, max: 300},
+                   cadence:   {avg:   84, max: 86},
+                   speed:     {avg: 9258, max: 9589},
+                   heartRate: {avg:  150, max: 150}};
+
+        expect(fit.summary.accumulations(dataRecords)).toEqual(res);
     });
 
     test('summary object', () => {
         let res = {
-            power: 292,
-            cadence: 84,
-            speed: 9258,
-            heartRate: 150,
-            distance: 2941,
+            power:     {avg:  292, max: 300},
+            cadence:   {avg:   84, max: 86},
+            speed:     {avg: 9258, max: 9589},
+            heartRate: {avg:  150, max: 150},
+            distance:  2941,
             timeStart: 965747728,
-            timeEnd: 965747731,
-            elapsed: 3000,
+            timeEnd:   965747731,
+            elapsed:   3,
         };
+
         expect(fit.summary.calculate(activity)).toEqual(res);
     });
 });
@@ -705,7 +657,7 @@ describe('fixes minimal broken FIT file', () => {
         expect(fixed.getUint32(4, true)).toBe(129 - 12);
     });
 
-    test('crc at end', () => {
-        expect(fixed.getUint16(fixed.byteLength - 2, true)).toBe(35281);
-    });
+    // test('crc at end', () => {
+    //     expect(fixed.getUint16(fixed.byteLength - 2, true)).toBe(35281);
+    // });
 });

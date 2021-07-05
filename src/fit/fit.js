@@ -1,5 +1,5 @@
 import { exists, map, first, last, nthBitToBool, toUint8Array } from '../functions.js';
-import { messages, basetypes } from './profiles.js';
+import { messages, basetypes, appTypes, localMessageDefinitions as lmd } from './profiles.js';
 
 
 
@@ -59,14 +59,17 @@ function FileHeader(args = {}) {
     function crcIndex(length) {
         return length - crcLength;
     }
+
     function readProtocolVersion(code) {
         if(code === 32) return '2.0';
         if(code === 16) return '1.0';
         return '';
     }
+
     function readProfileVersion(code) {
         return (code / 100).toFixed(2);
     }
+
     function readFileType(view) {
         const charCodes = [
             view.getUint8( 8, true),
@@ -135,12 +138,15 @@ function Header() {
     function getLocalNumber(header) {
         return header & 0b00001111;
     }
+
     function setLocalNumber(header, number) {
         return header + number;
     }
+
     function isDefinition(header) {
         return (header.type === 'definition');
     }
+
     function isData(header) {
         return (header.type === 'data');
     }
@@ -176,14 +182,17 @@ function Definition(args = {}) {
         if(res === undefined) console.error(`message global number ${number} not found`);
         return res;
     }
+
     function messageToNumber(message) {
         let res = messages[message].global_number;
         if(res === undefined) console.error(`message name ${message} not found`);
         return res;
     }
+
     function getLength(numberOfFields) {
         return fixedContentLength + (numberOfFields * fieldLength);
     }
+
     function getDataMsgLength(fields) {
         return headerLength + fields.reduce((acc, x) => acc + x.size, 0);
     }
@@ -237,6 +246,7 @@ function Definition(args = {}) {
 
         return new Uint8Array(buffer);
     }
+
     return Object.freeze({ read, encode, numberToMessage, messageToNumber });
 }
 
@@ -338,9 +348,9 @@ function Activity() {
         const fitFileHeader = fit.fileHeader.read(view);
         const fileLength    = view.byteLength;
 
-        let i              = fitFileHeader.length;
-        let records        = [fitFileHeader];
-        let dataMsg        = {};
+        let i           = fitFileHeader.length;
+        let records     = [fitFileHeader];
+        let dataMsg     = {};
         let definitions = {};
         let definition  = {};
 
@@ -390,35 +400,49 @@ function Activity() {
 
 function Summary() {
 
-    function getDataRecords(records) {
-        return records.filter(isDataRecord);
-    }
     function isDataRecord(record) {
         if(exists(record.type) && exists(record.message)) {
             return (record.type === 'data') && (record.message === 'record');
         }
         return false;
     }
-    function accumulate(acc, record) {
-        acc.power     += record.fields.power;
-        acc.cadence   += record.fields.cadence;
-        acc.speed     += record.fields.speed;
-        acc.heartRate += record.fields.heart_rate;
+
+    function getDataRecords(records) {
+        return records.filter(isDataRecord);
+    }
+
+    function format(v) {
+        v.avg = Math.floor(v.avg);
+        return v;
+    }
+
+    function accumulate(acc, record, _, { length }) {
+        acc.power.avg     += record.fields.power / length;
+        acc.cadence.avg   += record.fields.cadence / length;
+        acc.speed.avg     += record.fields.speed / length;
+        acc.heartRate.avg += record.fields.heart_rate / length;
+
+        if(record.fields.power      > acc.power.max)     acc.power.max     = record.fields.power;
+        if(record.fields.cadence    > acc.cadence.max)   acc.cadence.max   = record.fields.cadence;
+        if(record.fields.speed      > acc.speed.max)     acc.speed.max     = record.fields.speed;
+        if(record.fields.heart_rate > acc.heartRate.max) acc.heartRate.max = record.fields.heart_rate;
+
         return acc;
     }
-    function devideByCount(coll) {
-        return function(acc) {
-            return Math.floor(acc / coll.length);
-        };
+
+    function accumulations(dataRecords) {
+        let init = {power:     {avg: 0, max: 0},
+                    cadence:   {avg: 0, max: 0},
+                    speed:     {avg: 0, max: 0},
+                    heartRate: {avg: 0, max: 0}};
+
+        return map(dataRecords.reduce(accumulate, init), format);
     }
-    function average(dataRecords) {
-        let avgs = {power: 0, cadence: 0, speed: 0, heartRate: 0};
-        return map(dataRecords.reduce(accumulate, avgs), devideByCount(dataRecords));
-    }
+
     function calculate(activity) {
         const dataRecords = getDataRecords(activity);
 
-        let res       = average(dataRecords);
+        let res       = accumulations(dataRecords);
         res.distance  = last(dataRecords).fields.distance;
         res.timeStart = first(dataRecords).fields.timestamp;
         res.timeEnd   = last(dataRecords).fields.timestamp;
@@ -427,24 +451,91 @@ function Summary() {
         return res;
     }
 
-    return { calculate, average, getDataRecords, isDataRecord };
+    function toFooter(summary) {
+        let values = {
+            event: {
+                timestamp:   summary.timeEnd,
+                event:       appTypes.event.values.timer,
+                event_type:  appTypes.event_type.values.stop_all,
+                event_group: 0,
+            },
+            lap: {
+                timestamp:          summary.timeEnd,
+                start_time:         summary.timeStart,
+                total_elapsed_time: summary.elapsed,
+                total_timer_time:   summary.elapsed,
+                message_index:      0,
+                event:              appTypes.event.values.lap,
+                event_type:         appTypes.event_type.values.stop,
+                event_group:        0,
+                lap_trigger:        appTypes.lap_trigger.values.manual,
+            },
+            session: {
+                timestamp:          summary.timeEnd,
+                start_time:         summary.timeStart,
+                total_elapsed_time: summary.elapsed,
+                total_timer_time:   summary.elapsed,
+                message_index:      0,
+                first_lap_index:    0,
+                num_laps:           1,
+                sport:              appTypes.sport.values.cycling,
+                sub_sport:          appTypes.sub_sport.values.virtual_activity,
+                avg_power:          summary.power.avg,
+                max_power:          summary.power.max,
+                avg_cadence:        summary.cadence.avg,
+                max_cadence:        summary.cadence.max,
+                avg_speed:          summary.speed.avg,
+                max_speed:          summary.speed.max,
+                avg_heart_rate:     summary.heartRate.avg,
+                max_heart_rate:     summary.heartRate.max,
+                total_distance:     summary.distance,
+            },
+            activity: {
+                timestamp:       summary.timeEnd,
+                local_timestamp: summary.timeEnd,
+                num_sessions:    1,
+                type:            appTypes.activity.values.manual,
+                event:           appTypes.event.values.activity,
+                event_type:      appTypes.event_type.values.stop,
+                event_group:     0,
+            }
+        };
+
+        return new Uint8Array([
+            fit.data.encode(lmd.event, values.event),
+            // fit.definition.encode(lmd.lap),
+            fit.data.encode(lmd.lap, values.lap),
+            // fit.definition.encode(lmd.session),
+            fit.data.encode(lmd.session, values.session),
+            // fit.definition.encode(lmd.activity),
+            fit.data.encode(lmd.activity, values.activity)].map(x=>Array.from(x)).flat());
+    }
+
+    return { calculate, toFooter, accumulations, getDataRecords, isDataRecord };
 }
 
 function Fixer() {
-    function getRecordsLength(activity) {
-    }
+    const crcLength = 2;
 
-    function fix(view, activity, summary) {
-        let buffer     = new ArrayBuffer(view.byteLength + 2);
+    function fix(view, activity) {
+        let summary    = fit.summary.calculate(activity);
+        let footer     = fit.summary.toFooter(summary);
+
+        let buffer     = new ArrayBuffer(view.byteLength + footer.byteLength + crcLength);
         let fixedUint8 = new Uint8Array(buffer);
         let fixedView  = new DataView(buffer);
 
+        // write size into file header
         view.setInt32(4, view.byteLength - activity[0].length, true);
 
+        // copy to larger buffer
         fixedUint8.set(new Uint8Array(view.buffer), 0);
 
-        let crc = calculateCRC(fixedUint8, 0, fixedUint8.byteLength - 2);
+        // append footer
+        fixedUint8.set(footer, view.byteLength);
 
+        // calculate and write crc
+        let crc = calculateCRC(fixedUint8, 0, fixedUint8.byteLength - 2);
         fixedView.setUint16(fixedView.byteLength - 2, crc, true);
 
         return fixedView;
@@ -468,5 +559,4 @@ const fit = {
 const _ = { typeToAccessor };
 
 export { _ , fit };
-
 

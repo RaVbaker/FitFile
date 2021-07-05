@@ -30,6 +30,7 @@ async function onUpload(e) {
 
     let activity = fit.activity.read(view);
     console.log(activity);
+
     fixedFile = fit.fixer.fix(view, activity);
 
     pendingIcon.style.display = 'none';
