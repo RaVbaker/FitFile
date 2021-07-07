@@ -63,6 +63,7 @@ function FileHeader(args = {}) {
     function readProtocolVersion(code) {
         if(code === 32) return '2.0';
         if(code === 16) return '1.0';
+        if(code === 1)  return '1.0';
         return '';
     }
 
@@ -104,12 +105,12 @@ function FileHeader(args = {}) {
     };
 
     function encode(args) {
-        const length            = defaultSize;
-        const dataRecordsLength = args.fileLength - length - crcLength; // without header and crc
-        const protocolVersion   = 32;               // 16 v1, 32 v2
-        const profileVersion    = 2140;             // v21.40
-        const dataTypeByte      = [46, 70, 73, 84]; // ASCII values for ".FIT"
-        let crc                 = 0x0000;           // default value for optional crc of the header of bytes 0-11
+        const length            = args.length || defaultSize;
+        const dataRecordsLength = args.dataRecordsLength || 0;                 // without header and crc
+        const protocolVersion   = parseInt(args.protocolVersion) || 32;        // 16 v1, 32 v2
+        const profileVersion    = parseInt(args.profileVersion) * 100 || 2140; // v21.40
+        const dataTypeByte      = [46, 70, 73, 84];                            // ASCII values for ".FIT"
+        let crc                 = 0x0000; // default value for optional crc of the header of bytes 0-11
 
         let buffer   = new ArrayBuffer(length);
         let view     = new DataView(buffer);
@@ -125,7 +126,7 @@ function FileHeader(args = {}) {
 
         crc = calculateCRC(new Uint8Array(view.buffer), 0, crcIndex(length));
 
-        view.setUint16(crcIndex(length), crc, true);
+        if(length === defaultSize) view.setUint16(crcIndex(length), crc, true);
 
         return new Uint8Array(buffer);
     };
@@ -341,7 +342,73 @@ function Activity() {
     const fileHeaderLegacyLength = 12;
     const crcLength = 2;
 
-    function encode(definitions, values) {
+    function toDefinitions(activity) {
+        return activity.reduce((acc, msg) => {
+            if(msg.type === 'definition') {
+                acc[msg.local_number] = msg;
+                return acc;
+            }
+            return acc;
+        }, {});
+    }
+
+    function toFileLength(activity, definitions) {
+        const init = last(activity).type === 'crc' ? 0 : 2;
+
+        const length = activity.reduce((acc, msg) => {
+            if(msg.type === 'header') {
+                return acc + msg.length;
+            }
+            if(msg.type === 'definition') {
+                return acc + msg.length;
+            }
+            if(msg.type === 'data') {
+                let definition = definitions[msg.local_number];
+                return acc + definition.data_msg_length;
+            }
+            if(msg.type === 'crc') {
+                return acc + crcLength;
+            };
+            return acc;
+        }, init);
+
+
+        return length;
+    }
+
+    function encode(activity) {
+        let definitions = toDefinitions(activity);
+        let fileLength  = toFileLength(activity, definitions);
+
+        let uint8 = new Uint8Array(fileLength);
+        let view  = new DataView(uint8.buffer);
+
+        let offset = 0;
+
+        activity.forEach((msg) => {
+            if(msg.type === 'header') {
+                const encoded = fit.fileHeader.encode(
+                    Object.assign(msg, {dataRecordsLength: fileLength - msg.length - 2}));
+                uint8.set(encoded, offset);
+                offset+= encoded.byteLength;
+            }
+            if(msg.type === 'definition') {
+                const encoded = fit.definition.encode(msg);
+                uint8.set(encoded, offset);
+                offset+= encoded.byteLength;
+            }
+            if(msg.type === 'data') {
+                const encoded = fit.data.encode(definitions[msg.local_number], msg.fields);
+                uint8.set(encoded, offset);
+                offset+= encoded.byteLength;
+            }
+        });
+
+        // calculate and write crc
+        const crc = calculateCRC(uint8, 0, fileLength - crcLength);
+        view.setUint16(fileLength - crcLength, crc, true);
+
+        return uint8;
     }
 
     function read(view) {
@@ -354,9 +421,14 @@ function Activity() {
         let definitions = {};
         let definition  = {};
 
-        function isLastMessage(definition, i) {
-            return (i > (fileLength - definition.data_msg_length));
+        function isLastMessage(header, i) {
+            if(header.local_number in definitions) {
+                let definition = definitions[header.local_number];
+                return (i > (fileLength - definition.data_msg_length));
+            }
+            return (i >= (fileLength - 2));
         }
+
         function isCRC(i) {
             return (fileLength - i) === crcLength;
         }
@@ -366,7 +438,7 @@ function Activity() {
                 let currentByte = view.getUint8(i, true);
                 let header = fit.header.read(currentByte);
 
-                if(isLastMessage(definition, i)) {
+                if(isLastMessage(header, i)) {
                     if(isCRC(i)) {
                         records.push(fit.crc.read(view, i));
                     } else {
@@ -395,7 +467,7 @@ function Activity() {
         return records;
     }
 
-    return Object.freeze({ read, encode });
+    return Object.freeze({ read, encode, toDefinitions, toFileLength });
 }
 
 function Summary() {
@@ -452,25 +524,33 @@ function Summary() {
     }
 
     function toFooter(summary) {
-        let values = {
-            event: {
-                timestamp:   summary.timeEnd,
-                event:       appTypes.event.values.timer,
-                event_type:  appTypes.event_type.values.stop_all,
+        return [
+            // event data message (stop all)
+            {type: "data", message: "event", local_number: lmd.event.local_number, fields: {
+                timestamp: summary.timeEnd,
+                data: 0,
+                data16: 0,
+                event: appTypes.event.values.timer,
+                event_type: appTypes.event_type.values.stop_all,
                 event_group: 0,
-            },
-            lap: {
-                timestamp:          summary.timeEnd,
-                start_time:         summary.timeStart,
-                total_elapsed_time: summary.elapsed,
-                total_timer_time:   summary.elapsed,
-                message_index:      0,
-                event:              appTypes.event.values.lap,
-                event_type:         appTypes.event_type.values.stop,
-                event_group:        0,
-                lap_trigger:        appTypes.lap_trigger.values.manual,
-            },
-            session: {
+            }},
+            // lap definition message
+            lmd.lap,
+            // lap data
+            {type: "data", message: "lap", local_number: lmd.lap.local_number, fields: {
+                        timestamp:          summary.timeEnd,
+                        start_time:         summary.timeStart,
+                        total_elapsed_time: summary.elapsed,
+                        total_timer_time:   summary.elapsed,
+                        message_index:      0,
+                        event:              appTypes.event.values.lap,
+                        event_type:         appTypes.event_type.values.stop,
+                        event_group:        0,
+                        lap_trigger:        appTypes.lap_trigger.values.manual}},
+            // session definition message
+            lmd.session,
+            // session data message
+            {type: "data", message: "session", local_number: lmd.session.local_number, fields: {
                 timestamp:          summary.timeEnd,
                 start_time:         summary.timeStart,
                 total_elapsed_time: summary.elapsed,
@@ -489,8 +569,11 @@ function Summary() {
                 avg_heart_rate:     summary.heartRate.avg,
                 max_heart_rate:     summary.heartRate.max,
                 total_distance:     summary.distance,
-            },
-            activity: {
+            }},
+            // activity definition message
+            lmd.activity,
+            // activity data message
+            {type: "data", message: "activity", local_number: lmd.activity.local_number, fields: {
                 timestamp:       summary.timeEnd,
                 local_timestamp: summary.timeEnd,
                 num_sessions:    1,
@@ -498,17 +581,8 @@ function Summary() {
                 event:           appTypes.event.values.activity,
                 event_type:      appTypes.event_type.values.stop,
                 event_group:     0,
-            }
-        };
-
-        return new Uint8Array([
-            fit.data.encode(lmd.event, values.event),
-            // fit.definition.encode(lmd.lap),
-            fit.data.encode(lmd.lap, values.lap),
-            // fit.definition.encode(lmd.session),
-            fit.data.encode(lmd.session, values.session),
-            // fit.definition.encode(lmd.activity),
-            fit.data.encode(lmd.activity, values.activity)].map(x=>Array.from(x)).flat());
+            }}
+        ];
     }
 
     return { calculate, toFooter, accumulations, getDataRecords, isDataRecord };
@@ -517,26 +591,15 @@ function Summary() {
 function Fixer() {
     const crcLength = 2;
 
-    function fix(view, activity) {
-        let summary    = fit.summary.calculate(activity);
-        let footer     = fit.summary.toFooter(summary);
+    function fix(view, activity, summary) {
+        let headerLength = activity[0].length;
+        let footer       = fit.summary.toFooter(summary);
 
-        let buffer     = new ArrayBuffer(view.byteLength + footer.byteLength + crcLength);
-        let fixedUint8 = new Uint8Array(buffer);
-        let fixedView  = new DataView(buffer);
+        footer.forEach((msg) => activity.push(msg));
 
-        // write size into file header
-        view.setInt32(4, view.byteLength - activity[0].length, true);
+        // console.log(`activity and footer: `, activity);
 
-        // copy to larger buffer
-        fixedUint8.set(new Uint8Array(view.buffer), 0);
-
-        // append footer
-        fixedUint8.set(footer, view.byteLength);
-
-        // calculate and write crc
-        let crc = calculateCRC(fixedUint8, 0, fixedUint8.byteLength - 2);
-        fixedView.setUint16(fixedView.byteLength - 2, crc, true);
+        let fixedView = fit.activity.encode(activity);
 
         return fixedView;
     }

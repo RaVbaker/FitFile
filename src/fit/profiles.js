@@ -232,7 +232,7 @@ const localMessageDefinitions = {
     record: {
         type: 'definition',
         message: 'record',
-        local_number: 2,
+        local_number: 3,
         length: 6+0,
         data_msg_length: 1+0,
         fields: [
@@ -242,21 +242,23 @@ const localMessageDefinitions = {
     event: {
         type: 'definition',
         message: 'event',
-        local_number: 3,
-        length: 6+12,
-        data_msg_length: 1+22,
+        local_number: 2,
+        length: 6+18,
+        data_msg_length: 1+13,
         fields: [
             {field: 'timestamp',   number: 253, size: 4, base_type: 134},
+            {field: 'data',        number:   3, size: 4, base_type: 134},
+            {field: 'data16',      number:   2, size: 2, base_type: 132},
             {field: 'event',       number:   0, size: 1, base_type: 0},
             {field: 'event_type',  number:   1, size: 1, base_type: 0},
-            {field: 'event_group', number:  26, size: 1, base_type: 2},
+            {field: 'event_group', number:   4, size: 1, base_type: 2},
         ]
     },
     lap: {
         type: 'definition',
         message: 'lap',
         local_number: 4,
-        length: 6+28,
+        length: 6+27,
         data_msg_length: 1+22,
         fields: [
             {field: 'timestamp',          number: 253, size: 4, base_type: 134},

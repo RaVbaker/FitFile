@@ -119,27 +119,49 @@ describe('reads fit file header', () => {
 });
 
 describe('encodes fit file header', () => {
+    let FITjs = {
+        type: "header",
+        protocolVersion: "1.0",
+        profileVersion: "1.00",
+        dataRecordsLength: 434544,
+        fileType: ".FIT",
+        length: 12,
+        crc: false,
+    };
 
-    let header = fit.fileHeader.encode({fileLength: 116});
+    let header = fit.fileHeader.encode({dataRecordsLength: 100});
+    let legacy = fit.fileHeader.encode(FITjs);
 
     test('default header', () => {
         expect(Array.from(header)).toStrictEqual([14, 32, 92, 8, 100, 0, 0, 0, 46, 70, 73, 84, 63, 224]);
+    });
+
+    test('legacy header from FIT js', () => {
+        expect(Array.from(legacy)).toStrictEqual([12, 1, 100, 0, 112, 161, 6, 0, 46, 70, 73, 84]);
     });
 });
 
 describe('reads message header', () => {
 
     describe('definition header', () => {
-        let header  = fit.header.read(64); // 0b01000000
-        let header1 = fit.header.read(65); // 0b01000001
+        let header               = fit.header.read(64); // 0b01000000
+        let deviceInfoDefinition = fit.header.read(65); // 0b01000001
+        let lapDefinition        = fit.header.read(68); // 0b01000100
+        let eventData            = fit.header.read(2);  // 0b00000010
+        let lapData              = fit.header.read(4);  // 0b00000100
 
         test('reads type', () => {
             expect(header).toEqual({type: 'definition', header_type: 'normal', local_number: 0});
         });
 
-        test('reads local message number', () => {
-            expect(header1).toEqual({type: 'definition', header_type: 'normal', local_number: 1});
+        test('header of definition', () => {
+            expect(deviceInfoDefinition).toEqual({type: 'definition', header_type: 'normal', local_number: 1});
         });
+        test('header of data', () => {
+            expect(eventData).toEqual({type: 'data', header_type: 'normal', local_number: 2});
+            expect(lapData).toEqual({type: 'data', header_type: 'normal', local_number: 4});
+        });
+
     });
 
     describe('data header', () => {
@@ -305,6 +327,15 @@ describe('encodes File Id data message', () => {
         type:         4
     };
 
+    let FITjs = {
+        type: "data",
+        message: "file_id",
+        local_number: 0,
+        fields: {
+            manufacturer: 260, number: 0, product: 0, serial_number: 0, time_created: 992483978, type: 4,
+        }
+    };
+
     let res = fit.data.encode(lmd.fileId, values);
     //  res = new Uint8Array([0, 138, 26, 40, 59, 4, 1, 0, 0, 0, 0, 4]);
 
@@ -340,6 +371,68 @@ describe('encodes File Id data message', () => {
 
     test('correct length', () => {
         expect(res.byteLength).toBe(12);
+    });
+
+    test('from FIT js', () => {
+        let res = fit.data.encode(lmd.fileId, FITjs.fields);
+        expect(Array.from(res)).toStrictEqual([0, 138, 26, 40, 59, 4, 1, 0, 0, 0, 0, 4]);
+    });
+});
+
+describe('reads Event definition message', () => {
+    let buffer = new Uint8Array([
+        66, 0, 0, 21,0, 6,  253,4,134, 3,4,134, 2,2,132, 0,1,0, 1,1,0, 4,1,2,
+    ]).buffer;
+    let view = new DataView(buffer);
+
+    let res = fit.definition.read(view);
+
+    test('Lap definition', () => {
+        expect(res).toEqual({
+            type: 'definition',
+            message: 'event',
+            local_number: 2,
+            length: 6+18,
+            data_msg_length: 1+13,
+            fields: [
+                {field: 'timestamp',   number: 253, size: 4, base_type: 134},
+                {field: 'data',        number:   3, size: 4, base_type: 134},
+                {field: 'data16',      number:   2, size: 2, base_type: 132},
+                {field: 'event',       number:   0, size: 1, base_type: 0},
+                {field: 'event_type',  number:   1, size: 1, base_type: 0},
+                {field: 'event_group', number:   4, size: 1, base_type: 2},
+            ]
+        });
+    });
+});
+
+describe('reads Lap definition message', () => {
+    let buffer = new Uint8Array([
+        68, 0, 0, 19,0, 9, 253,4,134, 2,4,134, 7,4,134, 8,4,134, 254,2,132, 0,1,0, 1,1,0, 26,1,2, 24,1,2,
+    ]).buffer;
+    let view = new DataView(buffer);
+
+    let res = fit.definition.read(view);
+
+    test('Lap definition', () => {
+        expect(res).toEqual({
+            type: 'definition',
+            message: 'lap',
+            local_number: 4,
+            length: 6+27,
+            data_msg_length: 1+22,
+            fields: [
+                {field: 'timestamp',          number: 253, size: 4, base_type: 134},
+                {field: 'start_time',         number:   2, size: 4, base_type: 134},
+                {field: 'total_elapsed_time', number:   7, size: 4, base_type: 134},
+                {field: 'total_timer_time',   number:   8, size: 4, base_type: 134},
+                {field: 'message_index',      number: 254, size: 2, base_type: 132},
+                {field: 'event',              number:   0, size: 1, base_type: 0},
+                {field: 'event_type',         number:   1, size: 1, base_type: 0},
+                {field: 'event_group',        number:  26, size: 1, base_type: 2},
+                {field: 'lap_trigger',        number:  24, size: 1, base_type: 2},
+            ]
+        });
     });
 });
 
@@ -404,28 +497,39 @@ describe('encodes Footer', () => {
         }
     };
 
-    describe('encodes event message', () => {
+    describe('encodes event data message', () => {
         let event = fit.data.encode(lmd.event, values.event);
 
-        let res = [3,  19,36,144,57,  0, 4, 0];
+        let res = [2,  19,36,144,57,  0,0,0,0,  0,0,  0, 4, 0];
         let view = new DataView(event.buffer);
 
         test('event message', () => {
             expect(Array.from(event)).toStrictEqual(res);
             expect(view.getUint32(1, true)).toBe(965747731);
-            expect(view.getUint8(5, true)).toBe(0);
-            expect(view.getUint8(6, true)).toBe(4);
-            expect(view.getUint8(7, true)).toBe(0);
+            expect(view.getUint32(5, true)).toBe(0);
+            expect(view.getUint16(9, true)).toBe(0);
+            expect(view.getUint8(11, true)).toBe(0);
+            expect(view.getUint8(12, true)).toBe(4);
+            expect(view.getUint8(13, true)).toBe(0);
         });
     });
 
-    describe('encodes lap message', () => {
+    describe('encodes lap definition message', () => {
+        let definition = fit.definition.encode(lmd.lap);
+        let res = [68, 0, 0, 19,0, 9,  253,4,134, 2,4,134, 7,4,134, 8,4,134, 254,2,132, 0,1,0, 1,1,0, 26,1,2, 24,1,2];
+
+        test('lap definition', () => {
+            expect(Array.from(definition)).toStrictEqual(res);
+        });
+    });
+
+    describe('encodes lap data message', () => {
         let lap = fit.data.encode(lmd.lap, values.lap);
 
         let res = [4,  19,36,144,57,  16,36,144,57,  3,0,0,0,  3,0,0,0,  0,0, 9, 1, 0, 0];
         let view = new DataView(lap.buffer);
 
-        test('lap message', () => {
+        test('lap data', () => {
             expect(Array.from(lap)).toStrictEqual(res);
             expect(view.getUint32(1, true)).toBe(965747731);
             expect(view.getUint32(5, true)).toBe(965747728);
@@ -439,7 +543,16 @@ describe('encodes Footer', () => {
         });
     });
 
-    describe('encodes session message', () => {
+    describe('encodes session definition message', () => {
+        let definition = fit.definition.encode(lmd.session);
+        let res = [69, 0, 0, 18,0, 18,  253,4,134, 2,4,134, 7,4,134, 8,4,134, 254,2,132, 25,2,132, 26,2,132,
+                   5,1,0, 6,1,0, 20,2,132, 21,2,132, 18,1,2, 19,1,2, 14,2,132, 15,2,132, 16,1,2, 17,1,2, 9,4,134];
+        test('session definition', () => {
+            expect(Array.from(definition)).toStrictEqual(res);
+        });
+    });
+
+    describe('encodes session data message', () => {
         let session = fit.data.encode(lmd.session, values.session);
 
         let res = [5,  19,36,144,57,  16,36,144,57,  3,0,0,0,  3,0,0,0,
@@ -471,7 +584,15 @@ describe('encodes Footer', () => {
         });
     });
 
-    describe('encodes activity message', () => {
+    describe('encodes activity definition message', () => {
+        let definition = fit.definition.encode(lmd.activity);
+        let res = [70, 0, 0, 34,0, 7,  253,4,134, 5,4,134, 1,2,132, 2,1,0, 3,1,0, 4,1,0, 6,1,2];
+        test('activity definition', () => {
+            expect(Array.from(definition)).toStrictEqual(res);
+        });
+    });
+
+    describe('encodes activity data message', () => {
         let activity = fit.data.encode(lmd.activity, values.activity);
         let res = [6,  19,36,144,57,  19,36,144,57,  1,0,  0,  26,  1,  0];
 
@@ -481,29 +602,33 @@ describe('encodes Footer', () => {
     });
 
     describe('encodes footer', () => {
-        let footer = fit.summary.toFooter(summary);
-        let res = [
-            // event
-            3,  19,36,144,57,  0, 4, 0,
-            // lap definition
-            // ...
-            // lap
-            4,  19,36,144,57,  16,36,144,57,  3,0,0,0,  3,0,0,0,  0,0, 9, 1, 0, 0,
-            // session definition
-            // ...
-            // session
-            5,  19,36,144,57,  16,36,144,57,  3,0,0,0,  3,0,0,0,
-            0,0,  0,0,  1,0,  2,  58,
-            36,1,  44,1,  84, 86,  42,36,  117,37,  150, 150,  125,11,0,0,
-            // activity definition
-            // ...
-            // activity
-            6,  19,36,144,57,  19,36,144,57,  1,0,  0,  26,  1,  0,
-        ];
+        // let footer = fit.summary.toFooter(summary);
+        // let res = [
+        //     // event
+        //     2,  19,36,144,57,  0,0,0,0,  0,0,  0, 4, 0,
+        //     // lap definition
+        //     68, 0, 0, 19,0, 9,  253,4,134, 2,4,134, 7,4,134, 8,4,134, 254,2,132, 0,1,0, 1,1,0, 26,1,2, 24,1,2,
+        //     // lap
+        //     4,  19,36,144,57,  16,36,144,57,  3,0,0,0,  3,0,0,0,  0,0, 9, 1, 0, 0,
+        //     // session definition
+        //     69, 0, 0, 18,0, 18,  253,4,134, 2,4,134, 7,4,134, 8,4,134, 254,2,132, 25,2,132, 26,2,132,
+        //     5,1,0, 6,1,0, 20,2,132, 21,2,132, 18,1,2, 19,1,2, 14,2,132, 15,2,132, 16,1,2, 17,1,2, 9,4,134,
+        //     // session
+        //     5,  19,36,144,57,  16,36,144,57,  3,0,0,0,  3,0,0,0,
+        //     0,0,  0,0,  1,0,  2,  58,
+        //     36,1,  44,1,  84, 86,  42,36,  117,37,  150, 150,  125,11,0,0,
+        //     // activity definition
+        //     70, 0, 0, 34,0, 7,  253,4,134, 5,4,134, 1,2,132, 2,1,0, 3,1,0, 4,1,0, 6,1,2,
+        //     // activity
+        //     6,  19,36,144,57,  19,36,144,57,  1,0,  0,  26,  1,  0,
+        // ];
 
-        test('footer length', () => {
-            expect(footer.byteLength).toBe(87);
-        });
+        // test('footer length', () => {
+        //     expect(footer.byteLength).toBe(213);
+        // });
+        // test('footer', () => {
+        //     expect(Array.from(footer)).toStrictEqual(res);
+        // });
     });
 
 });
@@ -622,42 +747,67 @@ describe('makes summary', () => {
 });
 
 describe('fixes minimal broken FIT file', () => {
-    const records = [
-        // header
-        [12, 16, 100, 0, 0, 0, 0, 0, 46, 70, 73, 84],
-        // definition file id
-        [64, 0, 0, 0,0, 5,  4,4,134,  1,2,132,  2,2,132,  5,2,132,  0,1,0],
-        // data file id
-        [0, 138, 26, 40, 59, 4, 1, 0, 0, 0, 0, 4],
-        // definition record
-        //                   timestamp,  power, cadence, speed,   hr,   distance
-        [65, 0, 0, 20,0, 6,  253,4,134, 7,2,132, 4,1,2, 6,2,132, 3,1,2, 5,4,134],
-        // data record
-        [1, 138,26,40,59, 44,1, 80, 204,34, 150, 103,0,0,0],
-        [1, 139,26,40,59, 45,1, 81, 199,35, 150, 70,4,0,0],
-        [1, 140,26,40,59, 44,1, 83, 163,36, 150, 222,7,0,0],
-        [1, 141,26,40,59, 48,1, 80, 117,37, 150, 125,11,0,0],
-    ];
-    let recordsLength = records.flat().length;
 
-    let buffer = new Uint8Array([...records.flat()]).buffer;
-    let view   = new DataView(buffer);
+    // let buffer = new Uint8Array([...data.brokenMinimal]).buffer;
+    // let view   = new DataView(buffer);
 
-    let activity = fit.activity.read(view);
-    let summary  = fit.summary.calculate(activity);
-    let fixed = fit.fixer.fix(view, activity, summary);
+    // let activity = fit.activity.read(view);
+    // let summary  = fit.summary.calculate(activity);
+    // let fixed    = fit.fixer.fix(view, activity, summary);
 
-    describe('correct input', () => {
-        test('length', () => {
-            expect(view.byteLength).toBe(129);
+    // describe('correct input', () => {
+    //     test('length', () => {
+    //         expect(view.byteLength).toBe(12+155);
+    //     });
+    // });
+
+    // test('fixed file length', () => {
+    //     expect(fixed.byteLength).toBe(12+155+213+2);
+    // });
+
+    // test('data records length in header', () => {
+    //     expect(fixed.getUint32(4, true)).toBe(155+213);
+    // });
+
+    // test('crc at end', () => {
+    //     expect(fixed.getUint16(fixed.byteLength - 2, true)).toBe(33392);
+    // });
+
+    // test('fixed file', () => {
+    //     expect(Array.from(new Uint8Array(fixed.buffer))).toStrictEqual(data.fixedMinimal);
+    // });
+});
+
+
+describe('encodes FIT activity file', () => {
+
+    let definitions = fit.activity.toDefinitions(data.activity);
+    let fileLength  = fit.activity.toFileLength(data.activity, definitions);
+
+    let encoded = fit.activity.encode(data.activity3R);
+    let decoded = fit.activity.read(new DataView(encoded.buffer));
+
+    describe('to message definitions collection', () => {
+        test('definitions', () => {
+            expect(definitions).toEqual({
+                0: data.activity[1],
+                1: data.activity[3],
+                3: data.activity[5],
+                2: data.activity[6]
+            });
         });
     });
 
-    test('data records length in header', () => {
-        expect(fixed.getUint32(4, true)).toBe(129 - 12);
+    describe('to fit file length', () => {
+        test('length', () => {
+            expect(fileLength).toBe(12+24+16+39+25+51+24+14+(4*37)+2);
+        });
     });
 
-    // test('crc at end', () => {
-    //     expect(fixed.getUint16(fixed.byteLength - 2, true)).toBe(35281);
-    // });
+    describe('encode', () => {
+        test('adds crc if missing', () => {
+            data.activity3R.push({type: 'crc', value: 16549});
+            expect(decoded).toEqual(data.activity3R);
+        });
+    });
 });

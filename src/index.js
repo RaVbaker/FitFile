@@ -26,12 +26,15 @@ async function onUpload(e) {
     let file = await fileHandler.read(blob);
     console.log(`${blob.name}, ${file.byteLength} bytes`);
 
+
     let view = new DataView(file);
 
     let activity = fit.activity.read(view);
+    let summary = fit.summary.calculate(activity);
     console.log(activity);
+    console.log(summary);
 
-    fixedFile = fit.fixer.fix(view, activity);
+    fixedFile = fit.fixer.fix(view, activity, summary);
 
     pendingIcon.style.display = 'none';
 
