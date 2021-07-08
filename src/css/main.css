@@ -305,9 +305,9 @@ header.main svg {
 }
 
 @media all and (-webkit-min-device-pixel-ratio:0) and (min-resolution: .001dpcm) {
-    .file-btn-native {
-        margin-left: 38px;
-    }
+    /* .file-btn-native { */
+    /*     margin-left: 38px; */
+    /* } */
 }
 
 #icon-state-success,
