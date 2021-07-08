@@ -84,6 +84,9 @@ const activity = [
 ];
 
 const activity3R = [
+    //
+    // just the first 4 records from 3R_Sand_and_Sequoias_Race_C_.fit, as FITjs
+    //
     {type: "header", protocolVersion: "1.0", profileVersion: "1.00", dataRecordsLength: 161521,
      fileType: ".FIT", length: 12, crc: false},
     {type: "definition", message: "file_id", local_number: 0, length: 24, data_msg_length: 16,
@@ -177,6 +180,14 @@ const activity3R = [
 ];
 
 const brokenMinimal = [
+    //
+    // - file header has 0 data records length
+    // - file ends at last record
+    //    - without 'stop all' event message
+    //    - without lap, session and activity messages
+    // - no crc
+    //
+
     // header
     12,  16,  100,0,  0,0,0,0,  46,70,73,84,
     // file id definition message
@@ -201,7 +212,31 @@ const brokenMinimal = [
     3, 19,36,144,57, 44,1, 86, 117,37, 150, 125,11,0,0,
 ];
 
+const footer = [
+    // event
+    2,  19,36,144,57,  0,0,0,0,  0,0,  0, 4, 0,
+    // lap definition
+    68, 0, 0, 19,0, 9,  253,4,134, 2,4,134, 7,4,134, 8,4,134, 254,2,132, 0,1,0, 1,1,0, 26,1,2, 24,1,2,
+    // lap
+    4,  19,36,144,57,  16,36,144,57,  3,0,0,0,  3,0,0,0,  0,0, 9, 1, 0, 0,
+    // session definition
+    69, 0, 0, 18,0, 18,  253,4,134, 2,4,134, 7,4,134, 8,4,134, 254,2,132, 25,2,132, 26,2,132,
+    5,1,0, 6,1,0, 20,2,132, 21,2,132, 18,1,2, 19,1,2, 14,2,132, 15,2,132, 16,1,2, 17,1,2, 9,4,134,
+    // session
+    5,  19,36,144,57,  16,36,144,57,  3,0,0,0,  3,0,0,0,
+    0,0,  0,0,  1,0,  2,  58,
+    36,1,  44,1,  84, 86,  42,36,  117,37,  150, 150,  125,11,0,0,
+    // activity definition
+    70, 0, 0, 34,0, 7,  253,4,134, 5,4,134, 1,2,132, 2,1,0, 3,1,0, 4,1,0, 6,1,2,
+    // activity
+    6,  19,36,144,57,  19,36,144,57,  1,0,  0,  26,  1,  0,
+];
+
 const fixedMinimal = [
+    //
+    // brokenMinimal (with corrected file header) + footer + crc = fixedMinimal
+    //
+
     // header
     12,  16,  100,0,  112,1,0,0,  46,70,73,84,
     // file id definition message
@@ -242,7 +277,8 @@ const fixedMinimal = [
     // activity data message
     6,  19,36,144,57,  19,36,144,57,  1,0,  0,  26,  1,  0,
     // crc
-    112, 130
+    // 112, 130
+    226, 68
 ];
 
 const data = {

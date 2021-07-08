@@ -185,6 +185,77 @@ describe('last element of Collection or String', () => {
     });
 });
 
+describe('fit base type number to dataview accessor method', () => {
+    test('setUint8', () => {
+        expect(typeToAccessor(0)).toBe('setUint8');
+        expect(typeToAccessor(2)).toBe('setUint8');
+        expect(typeToAccessor(7)).toBe('setUint8');
+        expect(typeToAccessor(10)).toBe('setUint8');
+        expect(typeToAccessor(13)).toBe('setUint8');
+        expect(typeToAccessor('enum')).toBe('setUint8');
+        expect(typeToAccessor('uint8')).toBe('setUint8');
+        expect(typeToAccessor('string')).toBe('setUint8');
+        expect(typeToAccessor('byte')).toBe('setUint8');
+    });
+
+    test('setUint16', () => {
+        expect(typeToAccessor(132)).toBe('setUint16');
+        expect(typeToAccessor(139)).toBe('setUint16');
+        expect(typeToAccessor('uint16')).toBe('setUint16');
+        expect(typeToAccessor('uint16z')).toBe('setUint16');
+    });
+
+    test('setUint32', () => {
+        expect(typeToAccessor(134)).toBe('setUint32');
+        expect(typeToAccessor(140)).toBe('setUint32');
+        expect(typeToAccessor('uint32')).toBe('setUint32');
+        expect(typeToAccessor('uint32z')).toBe('setUint32');
+    });
+
+    test('setUint64', () => {
+        expect(typeToAccessor(143)).toBe('setUint64');
+        expect(typeToAccessor(144)).toBe('setUint64');
+        expect(typeToAccessor('uint64')).toBe('setUint64');
+        expect(typeToAccessor('uint64z')).toBe('setUint64');
+    });
+
+    test('setInt8', () => {
+        expect(typeToAccessor(1)).toBe('setInt8');
+        expect(typeToAccessor('sint8')).toBe('setInt8');
+    });
+
+    test('setInt16', () => {
+        expect(typeToAccessor(131)).toBe('setInt16');
+        expect(typeToAccessor('sint16')).toBe('setInt16');
+    });
+
+    test('setInt32', () => {
+        expect(typeToAccessor(133)).toBe('setInt32');
+        expect(typeToAccessor('sint32')).toBe('setInt32');
+    });
+
+    test('setInt64', () => {
+        expect(typeToAccessor(142)).toBe('setInt64');
+        expect(typeToAccessor('sint64')).toBe('setInt64');
+    });
+
+    test('setFloat32', () => {
+        expect(typeToAccessor(136)).toBe('setFloat32');
+        expect(typeToAccessor('float32')).toBe('setFloat32');
+    });
+
+    test('setFloat64', () => {
+        expect(typeToAccessor(137)).toBe('setFloat64');
+        expect(typeToAccessor('float64')).toBe('setFloat64');
+    });
+
+    test('getUint16', () => {
+        expect(typeToAccessor(132, 'get')).toBe('getUint16');
+        expect(typeToAccessor(139, 'get')).toBe('getUint16');
+        expect(typeToAccessor('uint16', 'get')).toBe('getUint16');
+        expect(typeToAccessor('uint16z', 'get')).toBe('getUint16');
+    });
+});
 
 
 

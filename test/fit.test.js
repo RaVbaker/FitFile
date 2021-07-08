@@ -1,81 +1,8 @@
 import { nthBit, getUint16, getUint32 } from '../src/functions.js';
-import { appTypes, localMessageDefinitions as lmd } from '../src/fit/profiles.js';
+import { appTypes } from '../src/fit/profiles.js';
+import { localMessageDefinitions as lmd } from '../src/fit/local-message-definitions.js';
 import { data } from './data.js';
-import { _, fit } from '../src/fit/fit.js';
-
-
-
-describe('fit base type number to dataview accessor method', () => {
-    test('setUint8', () => {
-        expect(_.typeToAccessor(0)).toBe('setUint8');
-        expect(_.typeToAccessor(2)).toBe('setUint8');
-        expect(_.typeToAccessor(7)).toBe('setUint8');
-        expect(_.typeToAccessor(10)).toBe('setUint8');
-        expect(_.typeToAccessor(13)).toBe('setUint8');
-        expect(_.typeToAccessor('enum')).toBe('setUint8');
-        expect(_.typeToAccessor('uint8')).toBe('setUint8');
-        expect(_.typeToAccessor('string')).toBe('setUint8');
-        expect(_.typeToAccessor('byte')).toBe('setUint8');
-    });
-
-    test('setUint16', () => {
-        expect(_.typeToAccessor(132)).toBe('setUint16');
-        expect(_.typeToAccessor(139)).toBe('setUint16');
-        expect(_.typeToAccessor('uint16')).toBe('setUint16');
-        expect(_.typeToAccessor('uint16z')).toBe('setUint16');
-    });
-
-    test('setUint32', () => {
-        expect(_.typeToAccessor(134)).toBe('setUint32');
-        expect(_.typeToAccessor(140)).toBe('setUint32');
-        expect(_.typeToAccessor('uint32')).toBe('setUint32');
-        expect(_.typeToAccessor('uint32z')).toBe('setUint32');
-    });
-
-    test('setUint64', () => {
-        expect(_.typeToAccessor(143)).toBe('setUint64');
-        expect(_.typeToAccessor(144)).toBe('setUint64');
-        expect(_.typeToAccessor('uint64')).toBe('setUint64');
-        expect(_.typeToAccessor('uint64z')).toBe('setUint64');
-    });
-
-    test('setInt8', () => {
-        expect(_.typeToAccessor(1)).toBe('setInt8');
-        expect(_.typeToAccessor('sint8')).toBe('setInt8');
-    });
-
-    test('setInt16', () => {
-        expect(_.typeToAccessor(131)).toBe('setInt16');
-        expect(_.typeToAccessor('sint16')).toBe('setInt16');
-    });
-
-    test('setInt32', () => {
-        expect(_.typeToAccessor(133)).toBe('setInt32');
-        expect(_.typeToAccessor('sint32')).toBe('setInt32');
-    });
-
-    test('setInt64', () => {
-        expect(_.typeToAccessor(142)).toBe('setInt64');
-        expect(_.typeToAccessor('sint64')).toBe('setInt64');
-    });
-
-    test('setFloat32', () => {
-        expect(_.typeToAccessor(136)).toBe('setFloat32');
-        expect(_.typeToAccessor('float32')).toBe('setFloat32');
-    });
-
-    test('setFloat64', () => {
-        expect(_.typeToAccessor(137)).toBe('setFloat64');
-        expect(_.typeToAccessor('float64')).toBe('setFloat64');
-    });
-
-    test('getUint16', () => {
-        expect(_.typeToAccessor(132, 'get')).toBe('getUint16');
-        expect(_.typeToAccessor(139, 'get')).toBe('getUint16');
-        expect(_.typeToAccessor('uint16', 'get')).toBe('getUint16');
-        expect(_.typeToAccessor('uint16z', 'get')).toBe('getUint16');
-    });
-});
+import { fit } from '../src/fit/fit.js';
 
 
 
@@ -121,7 +48,7 @@ describe('reads fit file header', () => {
 describe('encodes fit file header', () => {
     let FITjs = {
         type: "header",
-        protocolVersion: "1.0",
+        protocolVersion: "1",
         profileVersion: "1.00",
         dataRecordsLength: 434544,
         fileType: ".FIT",
@@ -436,7 +363,7 @@ describe('reads Lap definition message', () => {
     });
 });
 
-describe('encodes Footer', () => {
+describe('encodes footer messages', () => {
     const summary = {
         power:     {avg:  292, max: 300},
         cadence:   {avg:   84, max: 86},
@@ -600,37 +527,6 @@ describe('encodes Footer', () => {
             expect(Array.from(activity)).toStrictEqual(res);
         });
     });
-
-    describe('encodes footer', () => {
-        // let footer = fit.summary.toFooter(summary);
-        // let res = [
-        //     // event
-        //     2,  19,36,144,57,  0,0,0,0,  0,0,  0, 4, 0,
-        //     // lap definition
-        //     68, 0, 0, 19,0, 9,  253,4,134, 2,4,134, 7,4,134, 8,4,134, 254,2,132, 0,1,0, 1,1,0, 26,1,2, 24,1,2,
-        //     // lap
-        //     4,  19,36,144,57,  16,36,144,57,  3,0,0,0,  3,0,0,0,  0,0, 9, 1, 0, 0,
-        //     // session definition
-        //     69, 0, 0, 18,0, 18,  253,4,134, 2,4,134, 7,4,134, 8,4,134, 254,2,132, 25,2,132, 26,2,132,
-        //     5,1,0, 6,1,0, 20,2,132, 21,2,132, 18,1,2, 19,1,2, 14,2,132, 15,2,132, 16,1,2, 17,1,2, 9,4,134,
-        //     // session
-        //     5,  19,36,144,57,  16,36,144,57,  3,0,0,0,  3,0,0,0,
-        //     0,0,  0,0,  1,0,  2,  58,
-        //     36,1,  44,1,  84, 86,  42,36,  117,37,  150, 150,  125,11,0,0,
-        //     // activity definition
-        //     70, 0, 0, 34,0, 7,  253,4,134, 5,4,134, 1,2,132, 2,1,0, 3,1,0, 4,1,0, 6,1,2,
-        //     // activity
-        //     6,  19,36,144,57,  19,36,144,57,  1,0,  0,  26,  1,  0,
-        // ];
-
-        // test('footer length', () => {
-        //     expect(footer.byteLength).toBe(213);
-        // });
-        // test('footer', () => {
-        //     expect(Array.from(footer)).toStrictEqual(res);
-        // });
-    });
-
 });
 
 describe('reads Minimal FIT file', () => {
@@ -706,6 +602,7 @@ describe('reads Minimal FIT file', () => {
 
 describe('makes summary', () => {
     const activity = data.activity;
+    const summary  = fit.summary.calculate(activity);
 
     test('is data records', () => {
         expect(fit.summary.isDataRecord({})).toBe(false);
@@ -730,7 +627,8 @@ describe('makes summary', () => {
         expect(fit.summary.accumulations(dataRecords)).toEqual(res);
     });
 
-    test('summary object', () => {
+    test('calculates summary object', () => {
+
         let res = {
             power:     {avg:  292, max: 300},
             cadence:   {avg:   84, max: 86},
@@ -742,42 +640,36 @@ describe('makes summary', () => {
             elapsed:   3,
         };
 
-        expect(fit.summary.calculate(activity)).toEqual(res);
+        expect(summary).toEqual(res);
+    });
+
+    describe('summary object to FITjs footer', () => {
+        let footer = fit.summary.toFooter(summary);
+
+        test('footer length', () => {
+            expect(footer.length).toBe(7);
+        });
+        test('footer structure', () => {
+            expect(footer[0].type).toBe('data');
+            expect(footer[0].message).toBe('event');
+
+            expect(footer[1].type).toBe('definition');
+            expect(footer[1].message).toBe('lap');
+            expect(footer[2].type).toBe('data');
+            expect(footer[2].message).toBe('lap');
+
+            expect(footer[3].type).toBe('definition');
+            expect(footer[3].message).toBe('session');
+            expect(footer[4].type).toBe('data');
+            expect(footer[4].message).toBe('session');
+
+            expect(footer[5].type).toBe('definition');
+            expect(footer[5].message).toBe('activity');
+            expect(footer[6].type).toBe('data');
+            expect(footer[6].message).toBe('activity');
+        });
     });
 });
-
-describe('fixes minimal broken FIT file', () => {
-
-    // let buffer = new Uint8Array([...data.brokenMinimal]).buffer;
-    // let view   = new DataView(buffer);
-
-    // let activity = fit.activity.read(view);
-    // let summary  = fit.summary.calculate(activity);
-    // let fixed    = fit.fixer.fix(view, activity, summary);
-
-    // describe('correct input', () => {
-    //     test('length', () => {
-    //         expect(view.byteLength).toBe(12+155);
-    //     });
-    // });
-
-    // test('fixed file length', () => {
-    //     expect(fixed.byteLength).toBe(12+155+213+2);
-    // });
-
-    // test('data records length in header', () => {
-    //     expect(fixed.getUint32(4, true)).toBe(155+213);
-    // });
-
-    // test('crc at end', () => {
-    //     expect(fixed.getUint16(fixed.byteLength - 2, true)).toBe(33392);
-    // });
-
-    // test('fixed file', () => {
-    //     expect(Array.from(new Uint8Array(fixed.buffer))).toStrictEqual(data.fixedMinimal);
-    // });
-});
-
 
 describe('encodes FIT activity file', () => {
 
@@ -806,8 +698,42 @@ describe('encodes FIT activity file', () => {
 
     describe('encode', () => {
         test('adds crc if missing', () => {
-            data.activity3R.push({type: 'crc', value: 16549});
+            data.activity3R.push({type: 'crc', value: 7609});
             expect(decoded).toEqual(data.activity3R);
         });
     });
 });
+
+describe('fixes minimal broken FIT file', () => {
+
+    let buffer = new Uint8Array([...data.brokenMinimal]).buffer;
+    let view   = new DataView(buffer);
+
+    let activity  = fit.activity.read(view);
+    let summary   = fit.summary.calculate(activity);
+    let fixed     = fit.fixer.fix(view, activity, summary);
+    let fixedView = new DataView(fixed.buffer);
+
+    describe('correct input', () => {
+        test('length', () => {
+            expect(view.byteLength).toBe(12+155);
+        });
+    });
+
+    test('fixed file length', () => {
+        expect(fixed.byteLength).toBe(12+155+213+2);
+    });
+
+    test('data records length in header', () => {
+        expect(fixedView.getUint32(4, true)).toBe(155+213);
+    });
+
+    test('crc at end', () => {
+        expect(fixedView.getUint16(fixed.byteLength - 2, true)).toBe(17634); // 33392
+    });
+
+    test('fixed file', () => {
+        expect(Array.from(fixed)).toStrictEqual(data.fixedMinimal);
+    });
+});
+

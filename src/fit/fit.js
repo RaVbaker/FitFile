@@ -1,55 +1,11 @@
-import { exists, map, first, last, nthBitToBool, toUint8Array } from '../functions.js';
-import { messages, basetypes, appTypes, localMessageDefinitions as lmd } from './profiles.js';
+import { exists, isUndefined,
+         map, first, last,
+         nthBitToBool, toUint8Array,
+         calculateCRC, typeToAccessor } from '../functions.js';
+import { messages, basetypes, appTypes } from './profiles.js';
+import { localMessageDefinitions as lmd } from './local-message-definitions.js';
 
 
-
-function calculateCRC(uint8array, start, end) {
-    const crcTable = [
-        0x0000, 0xCC01, 0xD801, 0x1400, 0xF001, 0x3C00, 0x2800, 0xE401,
-        0xA001, 0x6C00, 0x7800, 0xB401, 0x5000, 0x9C01, 0x8801, 0x4400,
-    ];
-
-    let crc = 0;
-    for (let i = start; i < end; i++) {
-        const byte = uint8array[i];
-        let tmp = crcTable[crc & 0xF];
-        crc = (crc >> 4) & 0x0FFF;
-        crc = crc ^ tmp ^ crcTable[byte & 0xF];
-        tmp = crcTable[crc & 0xF];
-        crc = (crc >> 4) & 0x0FFF;
-        crc = crc ^ tmp ^ crcTable[(byte >> 4) & 0xF];
-    }
-
-    return crc;
-}
-
-function typeToAccessor(basetype, method = 'set') {
-    const uint8   = [0, 2, 7, 10, 13, 'enum', 'uint8', 'string', 'byte'];
-    const uint16  = [132, 139, 'uint16', 'uint16z'];
-    const uint32  = [134, 140, 'uint32', 'uint32z'];
-    const uint64  = [143, 144, 'uint64', 'uint64z'];
-
-    const int8    = [1, 'sint8'];
-    const int16   = [131, 'sint16'];
-    const int32   = [133, 'sint32'];
-    const int64   = [142, 'sint64'];
-
-    const float32 = [136, 'float32'];
-    const float64 = [137, 'float64'];
-
-    if(uint8.includes(basetype))   return `${method}Uint8`;
-    if(uint16.includes(basetype))  return `${method}Uint16`;
-    if(uint32.includes(basetype))  return `${method}Uint32`;
-    if(uint64.includes(basetype))  return `${method}Uint64`;
-    if(int8.includes(basetype))    return `${method}Int8`;
-    if(int16.includes(basetype))   return `${method}Int16`;
-    if(int32.includes(basetype))   return `${method}Int32`;
-    if(int64.includes(basetype))   return `${method}Int64`;
-    if(float32.includes(basetype)) return `${method}Float32`;
-    if(float64.includes(basetype)) return `${method}Float64`;
-
-    return `${method}Uint8`;
-}
 
 function FileHeader(args = {}) {
     const defaultSize = 14;
@@ -63,8 +19,7 @@ function FileHeader(args = {}) {
     function readProtocolVersion(code) {
         if(code === 32) return '2.0';
         if(code === 16) return '1.0';
-        if(code === 1)  return '1.0';
-        return '';
+        return '1';
     }
 
     function readProfileVersion(code) {
@@ -79,6 +34,18 @@ function FileHeader(args = {}) {
             view.getUint8(11, true)];
 
         return charCodes.reduce((acc, n) => acc+String.fromCharCode(n), '');
+    }
+
+    function writeProtocolVersion(version) {
+        if(isUndefined(version)) return 32;
+        if(version === '2.0')    return 32;
+        if(version === '1.0')    return 16;
+        return 1;
+    }
+
+    function writeProfileVersion(version) {
+        if(isUndefined(version)) return 2140;
+        return parseInt(version) * 100;
     }
 
     function read(view) {
@@ -106,10 +73,10 @@ function FileHeader(args = {}) {
 
     function encode(args) {
         const length            = args.length || defaultSize;
-        const dataRecordsLength = args.dataRecordsLength || 0;                 // without header and crc
-        const protocolVersion   = parseInt(args.protocolVersion) || 32;        // 16 v1, 32 v2
-        const profileVersion    = parseInt(args.profileVersion) * 100 || 2140; // v21.40
-        const dataTypeByte      = [46, 70, 73, 84];                            // ASCII values for ".FIT"
+        const dataRecordsLength = args.dataRecordsLength || 0;                // without header and crc
+        const protocolVersion   = writeProtocolVersion(args.protocolVersion); // 16 v1, 32 v2
+        const profileVersion    = writeProfileVersion(args.profileVersion);   // v21.40
+        const dataTypeByte      = [46, 70, 73, 84];                           // ASCII values for ".FIT"
         let crc                 = 0x0000; // default value for optional crc of the header of bytes 0-11
 
         let buffer   = new ArrayBuffer(length);
@@ -372,13 +339,14 @@ function Activity() {
             return acc;
         }, init);
 
-
         return length;
     }
 
     function encode(activity) {
-        let definitions = toDefinitions(activity);
-        let fileLength  = toFileLength(activity, definitions);
+        const definitions       = toDefinitions(activity);
+        const fileLength        = toFileLength(activity, definitions);
+        const headerLength      = activity[0].length;
+        const dataRecordsLength = fileLength - headerLength - crcLength;
 
         let uint8 = new Uint8Array(fileLength);
         let view  = new DataView(uint8.buffer);
@@ -388,7 +356,7 @@ function Activity() {
         activity.forEach((msg) => {
             if(msg.type === 'header') {
                 const encoded = fit.fileHeader.encode(
-                    Object.assign(msg, {dataRecordsLength: fileLength - msg.length - 2}));
+                    Object.assign(msg, {dataRecordsLength: dataRecordsLength}));
                 uint8.set(encoded, offset);
                 offset+= encoded.byteLength;
             }
@@ -589,19 +557,16 @@ function Summary() {
 }
 
 function Fixer() {
-    const crcLength = 2;
 
     function fix(view, activity, summary) {
         let headerLength = activity[0].length;
         let footer       = fit.summary.toFooter(summary);
 
+        // append footer
         footer.forEach((msg) => activity.push(msg));
 
-        // console.log(`activity and footer: `, activity);
-
-        let fixedView = fit.activity.encode(activity);
-
-        return fixedView;
+        // encode will correct the file header if data records length is missing
+        return fit.activity.encode(activity);
     }
 
     return Object.freeze({ fix });
@@ -619,7 +584,5 @@ const fit = {
     fixer: Fixer(),
 };
 
-const _ = { typeToAccessor };
-
-export { _ , fit };
+export { fit };
 
