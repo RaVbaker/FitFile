@@ -3,25 +3,64 @@ import { fit } from './fit/fit.js';
 
 
 
+// Input Button Upload
 let fileBtn     = document.getElementById('file-upload-btn');
-let downloadBtn = document.getElementById('file-download-btn');
 let idleIcon    = document.getElementById('icon-state-idle');
 let successIcon = document.getElementById('icon-state-success');
 let pendingIcon = document.getElementById('icon-state-pending');
 let errorIcon   = document.getElementById('icon-state-error');
-
-fileBtn.addEventListener('change', onUpload);
-downloadBtn.addEventListener('pointerup', onDownload);
+let downloadBtn = document.getElementById('file-download-btn');
 
 let fixedFile = false;
 let fileName = '';
 
+fileBtn.addEventListener('change', onInputChange);
 
-async function onUpload(e) {
+function onInputChange(e) {
+    let file = e.target.files[0];
+    onUpload(file);
+}
+
+
+
+// Drag and Drop Upload
+let dropArea = document.getElementById('upload');
+
+dropArea.addEventListener('dragenter', onDragEnterUpload, false);
+dropArea.addEventListener('dragleave', onDragLeaveUpload, false);
+dropArea.addEventListener('dragover',  onDragOverUpload, false);
+dropArea.addEventListener('drop',      onDropUpload, false);
+
+function onDragEnterUpload(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    dropArea.classList.add('active');
+}
+function onDragLeaveUpload(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    dropArea.classList.remove('active');
+}
+function onDragOverUpload(e) {
+    e.preventDefault();
+    e.stopPropagation();
+}
+function onDropUpload(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    dropArea.classList.remove('active');
+
+    fileBtn.files = e.dataTransfer.files;
+    onUpload(e.dataTransfer.files[0]);
+}
+
+
+
+// Upload
+async function onUpload(blob) {
     idleIcon.style.display = 'none';
     pendingIcon.style.display = 'block';
 
-    let blob = e.target.files[0];
     fileName = blob.name;
     let file = await fileHandler.read(blob);
     console.log(`${blob.name}, ${file.byteLength} bytes`);
@@ -31,10 +70,13 @@ async function onUpload(e) {
 
     let activity = fit.activity.read(view);
     let summary = fit.summary.calculate(activity);
-    console.log(activity);
-    console.log(summary);
+    // console.log(activity);
+    // console.log(summary);
 
     fixedFile = fit.fixer.fix(view, activity, summary);
+
+    // console.log(fixedFile.byteLength);
+    // console.log(fixedFile);
 
     pendingIcon.style.display = 'none';
 
@@ -42,9 +84,31 @@ async function onUpload(e) {
     downloadBtn.classList.remove('disabled');
 }
 
+
+
+// Download
+downloadBtn.addEventListener('pointerup', onDownload);
+
 async function onDownload(e) {
     if(!fixedFile) return;
 
     const blob = new Blob([fixedFile], {type: 'application/octet-stream'});
     fileHandler.save()(blob, `fixed-${fileName}`);
+}
+
+
+
+// Theme Switch
+let themeLightSwitch = document.getElementById('theme-light-switch');
+let themeDarkSwitch  = document.getElementById('theme-dark-switch');
+
+themeLightSwitch.addEventListener('pointerup', onThemeLightSwitch);
+themeDarkSwitch.addEventListener('pointerup', onThemeDarkSwitch);
+
+function onThemeLightSwitch(e) {
+    document.body.id = 'light';
+}
+
+function onThemeDarkSwitch(e) {
+    document.body.id = 'dark';
 }
