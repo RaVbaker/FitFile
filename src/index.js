@@ -1,5 +1,29 @@
 import { fileHandler } from './file.js';
 import { fit } from './fit/fit.js';
+import { localStorage } from './local-storage.js';
+
+
+
+// Theme Switch
+let theme = localStorage.restore('theme', 'dark');
+if(theme === 'dark')  onThemeDarkSwitch();
+if(theme === 'light') onThemeLightSwitch();
+
+let themeLightSwitch = document.getElementById('theme-light-switch');
+let themeDarkSwitch  = document.getElementById('theme-dark-switch');
+
+themeLightSwitch.addEventListener('pointerup', onThemeLightSwitch);
+themeDarkSwitch.addEventListener('pointerup', onThemeDarkSwitch);
+
+function onThemeLightSwitch(e) {
+    document.body.id = 'light';
+    localStorage.write('theme', 'light');
+}
+
+function onThemeDarkSwitch(e) {
+    document.body.id = 'dark';
+    localStorage.write('theme', 'dark');
+}
 
 
 
@@ -10,6 +34,7 @@ let successIcon = document.getElementById('icon-state-success');
 let pendingIcon = document.getElementById('icon-state-pending');
 let errorIcon   = document.getElementById('icon-state-error');
 let downloadBtn = document.getElementById('file-download-btn');
+let dropArea    = document.getElementById('upload');
 
 let fixedFile = false;
 let fileName = '';
@@ -24,7 +49,6 @@ function onInputChange(e) {
 
 
 // Drag and Drop Upload
-let dropArea = document.getElementById('upload');
 
 dropArea.addEventListener('dragenter', onDragEnterUpload, false);
 dropArea.addEventListener('dragleave', onDragLeaveUpload, false);
@@ -98,17 +122,9 @@ async function onDownload(e) {
 
 
 
-// Theme Switch
-let themeLightSwitch = document.getElementById('theme-light-switch');
-let themeDarkSwitch  = document.getElementById('theme-dark-switch');
-
-themeLightSwitch.addEventListener('pointerup', onThemeLightSwitch);
-themeDarkSwitch.addEventListener('pointerup', onThemeDarkSwitch);
-
-function onThemeLightSwitch(e) {
-    document.body.id = 'light';
+// Start
+function start() {
 }
 
-function onThemeDarkSwitch(e) {
-    document.body.id = 'dark';
-}
+start();
+
