@@ -183,6 +183,55 @@ function toUint8Array(n, type) {
     return n;
 }
 
+// FIT
+function calculateCRC(uint8array, start, end) {
+    const crcTable = [
+        0x0000, 0xCC01, 0xD801, 0x1400, 0xF001, 0x3C00, 0x2800, 0xE401,
+        0xA001, 0x6C00, 0x7800, 0xB401, 0x5000, 0x9C01, 0x8801, 0x4400,
+    ];
+
+    let crc = 0;
+    for (let i = start; i < end; i++) {
+        const byte = uint8array[i];
+        let tmp = crcTable[crc & 0xF];
+        crc = (crc >> 4) & 0x0FFF;
+        crc = crc ^ tmp ^ crcTable[byte & 0xF];
+        tmp = crcTable[crc & 0xF];
+        crc = (crc >> 4) & 0x0FFF;
+        crc = crc ^ tmp ^ crcTable[(byte >> 4) & 0xF];
+    }
+
+    return crc;
+}
+
+function typeToAccessor(basetype, method = 'set') {
+    const uint8   = [0, 2, 7, 10, 13, 'enum', 'uint8', 'string', 'byte'];
+    const uint16  = [132, 139, 'uint16', 'uint16z'];
+    const uint32  = [134, 140, 'uint32', 'uint32z'];
+    const uint64  = [143, 144, 'uint64', 'uint64z'];
+
+    const int8    = [1, 'sint8'];
+    const int16   = [131, 'sint16'];
+    const int32   = [133, 'sint32'];
+    const int64   = [142, 'sint64'];
+
+    const float32 = [136, 'float32'];
+    const float64 = [137, 'float64'];
+
+    if(uint8.includes(basetype))   return `${method}Uint8`;
+    if(uint16.includes(basetype))  return `${method}Uint16`;
+    if(uint32.includes(basetype))  return `${method}Uint32`;
+    if(uint64.includes(basetype))  return `${method}Uint64`;
+    if(int8.includes(basetype))    return `${method}Int8`;
+    if(int16.includes(basetype))   return `${method}Int16`;
+    if(int32.includes(basetype))   return `${method}Int32`;
+    if(int64.includes(basetype))   return `${method}Int64`;
+    if(float32.includes(basetype)) return `${method}Float32`;
+    if(float64.includes(basetype)) return `${method}Float64`;
+
+    return `${method}Uint8`;
+}
+
 export {
     // values
     equals,
@@ -216,5 +265,9 @@ export {
     toUint8Array,
     getUint16,
     getUint32,
-    xor
+    xor,
+
+    // FIT
+    calculateCRC,
+    typeToAccessor
 }
