@@ -1,4 +1,14 @@
-import { exists, empty, first, second, third, last, getIn, toUint8Array, typeToAccessor} from '../src/functions.js';
+import { exists,
+         empty,
+         first,
+         second,
+         third,
+         last,
+         traverse,
+         getIn,
+         xf,
+         toUint8Array,
+         typeToAccessor} from '../src/functions.js';
 
 describe('existance check', () => {
     describe('does not exist', () => {
@@ -185,6 +195,34 @@ describe('last element of Collection or String', () => {
     });
 });
 
+describe('traverse nested object', () => {
+
+    function accumulate(acc, k, v, obj) {
+        acc.push(v);
+        return acc;
+    }
+
+    test('empty object', () => {
+        expect(traverse({})).toEqual([]);
+    });
+
+    test('one entry object', () => {
+        expect(traverse({crc: true}, accumulate, [])).toEqual([true]);
+    });
+
+    test('one level object', () => {
+        expect(traverse({activity: true, session: true}, accumulate, [])).toEqual([true, true]);
+    });
+
+    test('many levels', () => {
+        let obj = {data: {file_id: true,
+                          event: {start: true,
+                                  stop: false}},
+                   crc: false};
+        expect(traverse(obj, accumulate, [])).toEqual([true, true, false, false]);
+    });
+});
+
 describe('fit base type number to dataview accessor method', () => {
     test('setUint8', () => {
         expect(typeToAccessor(0)).toBe('setUint8');
@@ -257,7 +295,50 @@ describe('fit base type number to dataview accessor method', () => {
     });
 });
 
+describe('XF', () => {
 
+    describe('A counter', () => {
+        // setup
+        xf.create({count: 0});
+
+        xf.reg('count-set', (value, db) => {
+            db.count = value;
+        });
+        xf.reg('count-inc', (_, db) => {
+            db.count = db.count + 1;
+        });
+        xf.reg('count-dec', (_, db) => {
+            db.count -= 1;
+        });
+
+        // use
+        let count = 0;
+
+        xf.sub('db:count', (value) => {
+            count = value;
+        });
+
+        test('init value', () => {
+            expect(count).toBe(0);
+        });
+
+        test('inc value', () => {
+            xf.dispatch('count-inc');
+            expect(count).toBe(1);
+        });
+
+        test('dec value', () => {
+            xf.dispatch('count-dec');
+            expect(count).toBe(0);
+        });
+
+        test('set value', () => {
+            xf.dispatch('count-set', 4);
+            expect(count).toBe(4);
+        });
+    });
+});
 
 // getIn
 // toUint8Array
+

@@ -108,6 +108,27 @@ function map(coll, fn) {
     throw new Error(`map called with unkown collection `, coll);
 }
 
+function traverse(obj, fn = ((x) => x), acc = []) {
+
+    function recur(fn, obj, keys, acc) {
+        if(empty(keys)) {
+            return acc;
+        } else {
+            let [k, ...ks] = keys;
+            let v = obj[k];
+
+            if(isObject(v)) {
+                acc = recur(fn, v, Object.keys(v), acc);
+                return recur(fn, obj, ks, acc);
+            } else {
+                acc = fn(acc, k, v, obj);
+                return recur(fn, obj, ks, acc);
+            }
+        }
+    }
+    return recur(fn, obj, Object.keys(obj), acc);
+}
+
 const repeat = n => f => x => {
     if (n > 0)
         return repeat (n - 1) (f) (f (x));
@@ -232,6 +253,75 @@ function typeToAccessor(basetype, method = 'set') {
     return `${method}Uint8`;
 }
 
+
+
+function XF(args = {}) {
+    let data = {};
+    let name = '';
+
+    function create(obj, storeName = 'db') {
+        data = proxify(obj);
+        name = storeName;
+    }
+
+    function proxify(obj) {
+        let handler = {
+            set: (target, key, value) => {
+                target[key] = value;
+                dispatch(`${name}:${key}`, target);
+                return true;
+            }
+        };
+        return new Proxy(obj, handler);
+    }
+
+    function dispatch(eventType, value) {
+        document.dispatchEvent(evt(eventType)(value));
+    }
+
+    function sub(eventType, handler, element = false) {
+        if(element) {
+            element.addEventListener(eventType, function(e) {
+                handler(e);
+            }, true);
+        } else {
+            document.addEventListener(eventType, function(e) {
+                if(isStoreSource(eventType)) {
+                    handler(e.detail.data[evtProp(eventType)]);
+                } else {
+                    handler(e.detail.data);
+                }
+            }, true);
+        }
+    }
+
+    function reg(eventType, handler) {
+        document.addEventListener(eventType, e => handler(e.detail.data, data));
+    }
+
+    function isStoreSource(eventType) {
+        return equals(evtSource(eventType), 'db');
+    }
+
+    function evt(eventType) {
+        return function(value) {
+            return new CustomEvent(eventType, {detail: {data: value}});
+        };
+    }
+
+    function evtProp(eventType) {
+        return second(eventType.split(':'));
+    }
+
+    function evtSource(eventType) {
+        return first(eventType.split(':'));
+    }
+
+    return Object.freeze({ create, reg, sub, dispatch });
+}
+
+const xf = XF();
+
 export {
     // values
     equals,
@@ -251,6 +341,7 @@ export {
     empty,
     getIn,
     map,
+    traverse,
     repeat,
 
     // Util
@@ -269,5 +360,8 @@ export {
 
     // FIT
     calculateCRC,
-    typeToAccessor
+    typeToAccessor,
+
+    // XF
+    xf
 }
