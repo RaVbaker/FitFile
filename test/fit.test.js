@@ -1,4 +1,4 @@
-import { nthBit, getUint16, getUint32 } from '../src/functions.js';
+import { empty, isObject, nthBit, getUint16, getUint32 } from '../src/functions.js';
 import { appTypes } from '../src/fit/profiles.js';
 import { localMessageDefinitions as lmd } from '../src/fit/local-message-definitions.js';
 import { data } from './data.js';
@@ -9,7 +9,7 @@ import { fit } from '../src/fit/fit.js';
 describe('reads fit file header', () => {
 
     describe('default header', () => {
-        let headerBuffer = new Uint8Array([14, 32, 92, 8, 39, 0, 0, 0, 46, 70, 73, 84, 123, 197]).buffer;
+        let headerBuffer = new Uint8Array([14, 32, 92,8,  39,0,0,0,  46,70,73,84,  123,197]).buffer;
         let view         = new DataView(headerBuffer);
 
         let header = fit.fileHeader.read(view);
@@ -29,7 +29,7 @@ describe('reads fit file header', () => {
     });
 
     describe('Zwift (legacy) header', () => {
-        let headerBuffer = new Uint8Array([12,16,100, 0,241,118, 2, 0, 46, 70, 73, 84]).buffer;
+        let headerBuffer = new Uint8Array([12, 16, 100,0,  241,118,2,0,  46,70,73,84]).buffer;
         let view         = new DataView(headerBuffer);
 
         let header = fit.fileHeader.read(view);
@@ -40,6 +40,22 @@ describe('reads fit file header', () => {
             protocolVersion: '1.0',
             profileVersion: '1.00',
             dataRecordsLength: 161521,
+            fileType: '.FIT',
+            crc: false});
+    });
+
+    describe('Zwift (legacy) unfinished header', () => {
+        let headerBuffer = new Uint8Array([12, 16, 100,0,  0,0,0,0,  46,70,73,84]).buffer;
+        let view         = new DataView(headerBuffer);
+
+        let header = fit.fileHeader.read(view);
+
+        expect(header).toEqual({
+            type: 'header',
+            length: 12,
+            protocolVersion: '1.0',
+            profileVersion: '1.00',
+            dataRecordsLength: 0,
             fileType: '.FIT',
             crc: false});
     });
@@ -60,11 +76,11 @@ describe('encodes fit file header', () => {
     let legacy = fit.fileHeader.encode(FITjs);
 
     test('default header', () => {
-        expect(Array.from(header)).toStrictEqual([14, 32, 92, 8, 100, 0, 0, 0, 46, 70, 73, 84, 63, 224]);
+        expect(Array.from(header)).toStrictEqual([14, 32, 92,8,  100,0,0,0,  46,70,73,84,  63,224]);
     });
 
     test('legacy header from FIT js', () => {
-        expect(Array.from(legacy)).toStrictEqual([12, 1, 100, 0, 112, 161, 6, 0, 46, 70, 73, 84]);
+        expect(Array.from(legacy)).toStrictEqual([12, 16, 100,0,  112,161,6,0,  46,70,73,84]);
     });
 });
 
@@ -532,7 +548,7 @@ describe('encodes footer messages', () => {
 describe('reads Minimal FIT file', () => {
     const records = [
         // header
-        [14, 32, 92, 8, 52, 0, 0, 0, 46, 70, 73, 84, 123, 197],
+        [14, 32, 92,8,  52,0,0,0,  46,70,73,84,  123,197],
         // definition file id
         [64, 0, 0, 0,0, 5,  4,4,134  , 1,2,132  , 2,2,132  , 5,2,132  , 0,1,0],
         // data file id
@@ -706,12 +722,14 @@ describe('encodes FIT activity file', () => {
 
 describe('fixes minimal broken FIT file', () => {
 
-    let buffer = new Uint8Array([...data.brokenMinimal]).buffer;
+    let buffer = new Uint8Array(data.brokenMinimal).buffer;
     let view   = new DataView(buffer);
 
-    let activity  = fit.activity.read(view);
-    let summary   = fit.summary.calculate(activity);
-    let fixed     = fit.fixer.fix(view, activity, summary);
+    let activity      = fit.activity.read(view);
+    let summary       = fit.summary.calculate(activity);
+    let fixedActivity = fit.fixer.fix(view, activity, summary);
+    let fixed         = fit.activity.encode(fixedActivity);
+
     let fixedView = new DataView(fixed.buffer);
 
     describe('correct input', () => {
@@ -734,6 +752,67 @@ describe('fixes minimal broken FIT file', () => {
 
     test('fixed file', () => {
         expect(Array.from(fixed)).toStrictEqual(data.fixedMinimal);
+    });
+});
+
+
+describe('check activity for errors', () => {
+
+    let brokenBuffer = new Uint8Array(data.brokenMinimal).buffer;
+    let brokenView   = new DataView(brokenBuffer);
+
+    let broken      = fit.activity.read(brokenView);
+    let checkBroken = fit.fixer.check(broken);
+
+    let fixedBuffer = new Uint8Array(data.fixedMinimal).buffer;
+    let fixedView   = new DataView(fixedBuffer);
+
+    let fixed      = fit.activity.read(fixedView);
+    let checkFixed = fit.fixer.check(fixed);
+
+    describe('check structure', () => {
+        test('structure of broken fit file', () => {
+            const structure = {
+                fileHeader: true,
+                crc: false,
+                definitions: { fileId: true,
+                               event: true,
+                               record: true,
+                               lap: false,
+                               session: false,
+                               activity: false },
+                data: {
+                    fileId: true,
+                    event: { start: true, stop: false },
+                    lap: false,
+                    session: false,
+                    activity:false
+                }
+            };
+
+            expect(checkBroken).toEqual(structure);
+        });
+        test('structure of correct fit file', () => {
+            const structure = {
+                fileHeader: true,
+                crc: true,
+                definitions: { fileId: true,
+                               event: true,
+                               record: true,
+                               lap: true,
+                               session: true,
+                               activity: true },
+                data: {
+                    fileId: true,
+                    event: { start: true, stop: true },
+                    lap: true,
+                    session: true,
+                    activity: true
+                }
+            };
+
+            expect(checkFixed).toEqual(structure);
+        });
     });
 });
 

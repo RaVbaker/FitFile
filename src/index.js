@@ -5,7 +5,7 @@ import { localStorage } from './local-storage.js';
 
 
 // Theme Switch
-let theme = localStorage.restore('theme', 'dark');
+let theme = localStorage.restore('theme', 'light');
 if(theme === 'dark')  onThemeDarkSwitch();
 if(theme === 'light') onThemeLightSwitch();
 
@@ -82,30 +82,41 @@ function onDropUpload(e) {
 
 // Upload
 async function onUpload(blob) {
-    idleIcon.style.display = 'none';
+    errorIcon.style.display   = 'none';
+    idleIcon.style.display    = 'none';
     pendingIcon.style.display = 'block';
+    downloadBtn.classList.add('disabled');
 
     fileName = blob.name;
     let file = await fileHandler.read(blob);
     console.log(`${blob.name}, ${file.byteLength} bytes`);
 
-
     let view = new DataView(file);
 
-    let activity = fit.activity.read(view);
-    let summary = fit.summary.calculate(activity);
-    // console.log(activity);
-    // console.log(summary);
+    try {
+        let activity = fit.activity.read(view);
+        let summary = fit.summary.calculate(activity);
 
-    fixedFile = fit.fixer.fix(view, activity, summary);
+        const check = fit.fixer.check(activity);
+        if(fit.fixer.allPass(check)) {
+            // file is just fine, nothing to do
+            fixedFile = view;
+            console.log(activity);
+        } else {
+            const fixedActivity = fit.fixer.fix(view, activity, summary, check);
+            console.log(fixedActivity);
+            fixedFile = fit.activity.encode(activity);
+        }
 
-    // console.log(fixedFile.byteLength);
-    // console.log(fixedFile);
-
-    pendingIcon.style.display = 'none';
-
-    successIcon.style.display = 'block';
-    downloadBtn.classList.remove('disabled');
+        successIcon.style.display = 'block';
+        downloadBtn.classList.remove('disabled');
+    } catch(e) {
+        successIcon.style.display = 'none';
+        errorIcon.style.display = 'block';
+        console.log(e);
+    } finally {
+        pendingIcon.style.display = 'none';
+    }
 }
 
 
