@@ -305,7 +305,7 @@ describe('XF', () => {
             db.count = value;
         });
         xf.reg('count-inc', (_, db) => {
-            db.count = db.count + 1;
+            db.count += 1;
         });
         xf.reg('count-dec', (_, db) => {
             db.count -= 1;
@@ -314,9 +314,11 @@ describe('XF', () => {
         // use
         let count = 0;
 
-        xf.sub('db:count', (value) => {
+        function countSub(value) {
             count = value;
-        });
+        }
+
+        const subId = xf.sub('db:count', countSub);
 
         test('init value', () => {
             expect(count).toBe(0);
@@ -334,6 +336,12 @@ describe('XF', () => {
 
         test('set value', () => {
             xf.dispatch('count-set', 4);
+            expect(count).toBe(4);
+        });
+
+        test('unsub', () => {
+            xf.unsub('db:count', subId);
+            xf.dispatch('count-set', 3);
             expect(count).toBe(4);
         });
     });

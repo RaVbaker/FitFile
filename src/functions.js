@@ -257,11 +257,10 @@ function typeToAccessor(basetype, method = 'set') {
 
 function XF(args = {}) {
     let data = {};
-    let name = '';
+    let name = args.name || 'db';
 
-    function create(obj, storeName = 'db') {
+    function create(obj) {
         data = proxify(obj);
-        name = storeName;
     }
 
     function proxify(obj) {
@@ -281,17 +280,20 @@ function XF(args = {}) {
 
     function sub(eventType, handler, element = false) {
         if(element) {
-            element.addEventListener(eventType, function(e) {
-                handler(e);
-            }, true);
+            element.addEventListener(eventType, handler, true);
+            return handler;
         } else {
-            document.addEventListener(eventType, function(e) {
+            function handlerWraper(e) {
                 if(isStoreSource(eventType)) {
                     handler(e.detail.data[evtProp(eventType)]);
                 } else {
                     handler(e.detail.data);
                 }
-            }, true);
+            }
+
+            document.addEventListener(eventType, handlerWraper, true);
+
+            return handlerWraper;
         }
     }
 
@@ -299,8 +301,16 @@ function XF(args = {}) {
         document.addEventListener(eventType, e => handler(e.detail.data, data));
     }
 
+    function unsub(eventType, handler, element = false) {
+        if(element) {
+            element.removeEventListener(eventType, handler, true);
+        } else {
+            document.removeEventListener(eventType, handler, true);
+        }
+    }
+
     function isStoreSource(eventType) {
-        return equals(evtSource(eventType), 'db');
+        return equals(evtSource(eventType), name);
     }
 
     function evt(eventType) {
@@ -317,7 +327,7 @@ function XF(args = {}) {
         return first(eventType.split(':'));
     }
 
-    return Object.freeze({ create, reg, sub, dispatch });
+    return Object.freeze({ create, reg, sub, dispatch, unsub });
 }
 
 const xf = XF();
