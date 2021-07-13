@@ -298,6 +298,78 @@ header.main svg {
     margin: 20px auto;
 }
 
+#graph-cont {
+    position: relative;
+    width: 100%;
+}
+#graph {
+    position: absolute;
+    top: 0;
+    left: 0;
+
+    display: flex;
+    align-items: baseline;
+    justify-content: flex-start;
+}
+.bar {
+    width: 1px;
+}
+
+/* --zone-red:    #FE340B; */
+/* --zone-orange: #FF663A; */
+/* --zone-yellow: #F8C73A; */
+/* --zone-green:  #57C057; */
+/* --zone-teal:   #bffff9; */
+/* --zone-blue:   #328AFF; */
+/* --zone-gray:   #636468; */
+
+.zone-one {
+    background-color: #636468;
+}
+.zone-two {
+    background-color: #328AFF;
+}
+.zone-three {
+    background-color: #57C057;
+}
+.zone-four {
+    background-color: #57C057;
+}
+.zone-five {
+    background-color: #F8C73A;
+}
+.zone-six {
+    background-color: #FF663A;
+}
+.zone-seven {
+    background-color: #FE340B;
+}
+
+
+
+#summary {
+}
+.tr {
+    display: flex;
+    align-items: center;
+}
+.th {
+    width: 20%;
+    text-align: center;
+    /* background-color: rgba(255,255,255, 0.4); */
+}
+.tdh {
+    width: 20%;
+    text-align: center;
+}
+.td {
+    width: 20%;
+    text-align: center;
+    background-color: rgba(255,255,255, 0.4);
+}
+
+
+
 @-moz-document url-prefix() {
     .file-btn-native {
         margin-left: 47px;

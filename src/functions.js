@@ -253,6 +253,27 @@ function typeToAccessor(basetype, method = 'set') {
     return `${method}Uint8`;
 }
 
+function powerToZone(value, ftp) {
+    const zones = ['one', 'two', 'three', 'four', 'five', 'six', 'seven'];
+    const zwiftPercentages = {'one': 0.60, 'two': 0.75, 'three': 0.89, 'four': 1.04, 'five': 1.18};
+
+    let name = zones[0];
+    if(value < (ftp * zwiftPercentages.one)) {
+        name = zones[0];
+    } else if(value < (ftp * zwiftPercentages.two)) {
+        name = zones[1];
+    } else if(value < (ftp * zwiftPercentages.three)) {
+        name = zones[2];
+    } else if(value < (ftp * zwiftPercentages.four)) {
+        name = zones[3];
+    } else if(value < (ftp * zwiftPercentages.five)) {
+        name = zones[4];
+    } else {
+        name = zones[5];
+    }
+    return name;
+}
+
 
 
 function XF(args = {}) {
