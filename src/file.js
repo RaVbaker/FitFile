@@ -38,6 +38,15 @@ class FileHandler {
             window.URL.revokeObjectURL(url);
         };
     };
+    saveJson(activity, fileName) {
+        const json = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(activity));
+        var downloadAnchorNode = document.createElement('a');
+        downloadAnchorNode.setAttribute('href', json);
+        downloadAnchorNode.setAttribute('download', `${fileName}.json`);
+        document.body.appendChild(downloadAnchorNode);
+        downloadAnchorNode.click();
+        downloadAnchorNode.remove();
+    }
 }
 
 const fileHandler = new FileHandler();

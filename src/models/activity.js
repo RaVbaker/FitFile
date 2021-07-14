@@ -8,9 +8,14 @@ function Activity() {
     let fixedFile = false;
     let activity = [];
     let summary = {};
+    let fixedActivity = [];
 
     xf.sub('ui:file-download', function (e) {
         download();
+    });
+
+    xf.sub('ui:json-export', function (e) {
+        jsonExport();
     });
 
     async function read(blob) {
@@ -37,14 +42,23 @@ function Activity() {
 
             const check = fit.fixer.check(activity);
 
+            console.log('original activity ---->');
+            console.log(activity);
+            console.log('end original activity');
+
             if(fit.fixer.allPass(check)) {
                 fixedFile = view;
-                console.log(activity);
+                fixedActivity = activity;
             } else {
-                const fixedActivity = fit.fixer.fix(view, activity, summary, check);
-                console.log(fixedActivity);
+                fixedActivity = fit.fixer.fix(view, activity, summary, check);
                 fixedFile = fit.activity.encode(activity);
+
+                console.log('fixed activity ---->');
+                console.log(fixedActivity);
+                console.log('end fixed activity');
             }
+
+
 
             xf.dispatch('file:success');
         } catch(e) {
@@ -59,6 +73,10 @@ function Activity() {
         if(!fixedFile) return;
         const blob = new Blob([fixedFile], {type: 'application/octet-stream'});
         fileHandler.save()(blob, `fixed-${fileName}`);
+    }
+
+    function jsonExport() {
+        fileHandler.saveJson(activity, `json-${fileName}`);
     }
 
     return Object.freeze({ read, open, download });
