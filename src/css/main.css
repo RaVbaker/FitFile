@@ -122,6 +122,7 @@ header, footer, section, article, nav {
 #light .btn {
     color: #fff;
     background-color: #1a1a1a;
+    border-radius: 3px;
 }
 #light .line {
     background-color: rgba(0,0,0, 0.1);
@@ -296,6 +297,10 @@ header.main svg {
     justify-content: space-between;
 
     margin: 20px auto;
+}
+#json-export-btn {
+    margin-left: auto;
+    margin-right: 20px;
 }
 
 #graph-cont {
