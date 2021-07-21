@@ -2,8 +2,6 @@ import { fileHandler } from '../file.js';
 import { fit } from '../fit/fit.js';
 import { xf, toJsTimestamp } from '../functions.js';
 
-import * as d3 from "https://cdn.skypack.dev/d3@7";
-
 function Activity() {
     let file = false;
     let fileName = '';
