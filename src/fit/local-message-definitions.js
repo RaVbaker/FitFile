@@ -24,6 +24,20 @@ const localMessageDefinitions = {
         data_msg_length: 1+0,
         fields: [
             {field: 'timestamp',   number: 253, size: 4, base_type: 134},
+            {field: "position_lat", number: 0, size: 4, base_type: 133},
+            {field: "position_long", number: 1, size: 4, base_type: 133},
+            {field: "distance", number: 5, size: 4, base_type: 134},
+            {field: "time_from_course", number: 11, size: 4, base_type: 133},
+            {field: "compressed_speed_distance", number: 8, size: 3, base_type: 13},
+            {field: "heart_rate", number: 3, size: 1, base_type: 2},
+            {field: "altitude", number: 2, size: 2, base_type: 132},
+            {field: "speed", number: 6, size: 2, base_type: 132},
+            {field: "power", number: 7, size: 2, base_type: 132},
+            {field: "grade", number: 9, size: 2, base_type: 131},
+            {field: "cadence", number: 4, size: 1, base_type: 2},
+            {field: "resistance", number: 10, size: 1, base_type: 2},
+            {field: "cycle_length", number: 12, size: 1, base_type: 2},
+            {field: "temperature", number: 13, size: 1, base_type: 1},
         ]
     },
     event: {

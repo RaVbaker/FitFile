@@ -1,6 +1,8 @@
 import { fileHandler } from '../file.js';
 import { fit } from '../fit/fit.js';
-import { xf } from '../functions.js';
+import { xf, toJsTimestamp } from '../functions.js';
+
+import * as d3 from "https://cdn.skypack.dev/d3@7";
 
 function Activity() {
     let file = false;
@@ -9,6 +11,7 @@ function Activity() {
     let activity = [];
     let summary = {};
     let fixedActivity = [];
+    let dataRecords = [];
 
     xf.sub('ui:file-download', function (e) {
         download();
@@ -39,6 +42,7 @@ function Activity() {
         try {
             activity = fit.activity.read(view);
             summary = fit.summary.calculate(activity);
+            dataRecords = fit.summary.getDataRecords(activity);
 
             const check = fit.fixer.check(activity);
 
@@ -57,8 +61,6 @@ function Activity() {
                 console.log(fixedActivity);
                 console.log('end fixed activity');
             }
-
-
 
             xf.dispatch('file:success');
         } catch(e) {

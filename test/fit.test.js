@@ -660,7 +660,7 @@ describe('makes summary', () => {
     });
 
     describe('summary object to FITjs footer', () => {
-        let footer = fit.summary.toFooter(summary);
+        let footer = fit.summary.toFooter(summary, false);
 
         test('footer length', () => {
             expect(footer.length).toBe(7);
@@ -727,7 +727,8 @@ describe('fixes minimal broken FIT file', () => {
 
     let activity      = fit.activity.read(view);
     let summary       = fit.summary.calculate(activity);
-    let fixedActivity = fit.fixer.fix(view, activity, summary);
+    let check         = fit.fixer.check(activity);
+    let fixedActivity = fit.fixer.fix(view, activity, summary, check);
     let fixed         = fit.activity.encode(fixedActivity);
 
     let fixedView = new DataView(fixed.buffer);
@@ -816,3 +817,6 @@ describe('check activity for errors', () => {
     });
 });
 
+
+// describe('handles inProgressActivity.fit', () => {
+// });

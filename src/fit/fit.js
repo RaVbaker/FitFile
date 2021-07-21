@@ -401,6 +401,11 @@ function Activity() {
             return (fileLength - i) === crcLength;
         }
 
+        function getLocalDefinition(local_number) {
+            let definition = Object.entries(lmd).filter(d => d[1].local_number === local_number)[0][1];
+            return definition;
+        }
+
         while(i < fileLength) {
             try {
                 let currentByte = view.getUint8(i, true);
@@ -422,6 +427,13 @@ function Activity() {
                 }
                 if(fit.header.isData(header)) {
                     definition = definitions[header.local_number];
+
+                    if(isUndefined(definition)) {
+                        definition = getLocalDefinition(header.local_number);
+                        definitions[header.local_number] = definition;
+                        records.push(definition);
+                    }
+
                     dataMsg = fit.data.read(definition, view, i);
                     records.push(dataMsg);
                     i += definition.data_msg_length;
@@ -482,7 +494,17 @@ function Summary() {
     function calculate(activity) {
         const dataRecords = getDataRecords(activity);
 
-        let res       = accumulations(dataRecords);
+        let res = accumulations(dataRecords);
+
+        if(empty(dataRecords)) {
+            const file_id = activity.filter(m => m.type === 'data' && m.message === 'file_id')[0];
+            return Object.assign(res, {
+                distance: 0,
+                timeStart: file_id.fields.timecreated,
+                timeEnd: file_id.fields.timecreated,
+                elapsed: 0});
+        }
+
         res.distance  = last(dataRecords).fields.distance;
         res.timeStart = first(dataRecords).fields.timestamp;
         res.timeEnd   = last(dataRecords).fields.timestamp;
@@ -491,34 +513,33 @@ function Summary() {
         return res;
     }
 
-    function toFooter(summary) {
-        return [
-            // event data message (stop all)
-            {type: "data", message: "event", local_number: lmd.event.local_number, fields: {
-                timestamp: summary.timeEnd,
-                data: 0,
-                data16: 0,
-                event: appTypes.event.values.timer,
-                event_type: appTypes.event_type.values.stop_all,
-                event_group: 0,
-            }},
-            // lap definition message
-            lmd.lap,
-            // lap data
-            {type: "data", message: "lap", local_number: lmd.lap.local_number, fields: {
-                        timestamp:          summary.timeEnd,
-                        start_time:         summary.timeStart,
-                        total_elapsed_time: summary.elapsed,
-                        total_timer_time:   summary.elapsed,
-                        message_index:      0,
-                        event:              appTypes.event.values.lap,
-                        event_type:         appTypes.event_type.values.stop,
-                        event_group:        0,
-                        lap_trigger:        appTypes.lap_trigger.values.manual}},
-            // session definition message
-            lmd.session,
-            // session data message
-            {type: "data", message: "session", local_number: lmd.session.local_number, fields: {
+    function toFooter(summary, check = false) {
+        let footer = [];
+
+        const eventStopAllData = {
+            type: "data", message: "event", local_number: lmd.event.local_number, fields: {
+                  timestamp: summary.timeEnd,
+                  data: 0,
+                  data16: 0,
+                  event: appTypes.event.values.timer,
+                  event_type: appTypes.event_type.values.stop_all,
+                  event_group: 0,
+            }};
+
+        const lapData = {
+            type: "data", message: "lap", local_number: lmd.lap.local_number, fields: {
+                timestamp:          summary.timeEnd,
+                start_time:         summary.timeStart,
+                total_elapsed_time: summary.elapsed,
+                total_timer_time:   summary.elapsed,
+                message_index:      0,
+                event:              appTypes.event.values.lap,
+                event_type:         appTypes.event_type.values.stop,
+                event_group:        0,
+                lap_trigger:        appTypes.lap_trigger.values.manual}};
+
+        const sessionData = {
+            type: "data", message: "session", local_number: lmd.session.local_number, fields: {
                 timestamp:          summary.timeEnd,
                 start_time:         summary.timeStart,
                 total_elapsed_time: summary.elapsed,
@@ -537,20 +558,33 @@ function Summary() {
                 avg_heart_rate:     summary.heartRate.avg,
                 max_heart_rate:     summary.heartRate.max,
                 total_distance:     summary.distance,
-            }},
-            // activity definition message
-            lmd.activity,
-            // activity data message
-            {type: "data", message: "activity", local_number: lmd.activity.local_number, fields: {
-                timestamp:       summary.timeEnd,
-                local_timestamp: summary.timeEnd,
-                num_sessions:    1,
-                type:            appTypes.activity.values.manual,
-                event:           appTypes.event.values.activity,
-                event_type:      appTypes.event_type.values.stop,
-                event_group:     0,
-            }}
-        ];
+            }};
+
+        const activityData = {
+            type: "data", message: "activity", local_number: lmd.activity.local_number, fields: {
+                  timestamp:       summary.timeEnd,
+                  local_timestamp: summary.timeEnd,
+                  num_sessions:    1,
+                  type:            appTypes.activity.values.manual,
+                  event:           appTypes.event.values.activity,
+                  event_type:      appTypes.event_type.values.stop,
+                  event_group:     0,
+            }};
+
+
+        if(check !== false) {
+            if(!check.data.event.stop)      footer.push(eventStopAllData);
+            if(!check.definitions.lap)      footer.push(lmd.lap);
+            if(!check.data.lap)             footer.push(lapData);
+            if(!check.definitions.session)  footer.push(lmd.session);
+            if(!check.data.session)         footer.push(sessionData);
+            if(!check.definitions.activity) footer.push(lmd.activity);
+            if(!check.data.activity)        footer.push(activityData);
+        } else {
+            footer = [eventStopAllData, lmd.lap, lapData, lmd.session, sessionData, lmd.activity, activityData];
+        }
+
+        return footer;
     }
 
     return { calculate, toFooter, accumulations, getDataRecords, isDataRecord };
@@ -592,7 +626,10 @@ function Fixer() {
                            activity: false },
             data: {
                 fileId: false,
-                event: { start: false, stop: false },
+                event: {
+                    start: false,
+                    stop: false
+                },
                 lap: false,
                 session: false,
                 activity:false
@@ -632,7 +669,7 @@ function Fixer() {
     }
 
     function fix(view, activity, summary = {}, check = {}) {
-        let footer = fit.summary.toFooter(summary);
+        let footer = fit.summary.toFooter(summary, check);
 
         // append footer
         footer.forEach((msg) => activity.push(msg));
