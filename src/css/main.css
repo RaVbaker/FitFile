@@ -285,19 +285,18 @@ header.main svg {
 }
 .file-btn-native {
     position: relative;
-    margin-left: 32px;
-    padding: 9px 0 9px 0;
+    padding: 9px 0 9px 33px;
     z-index: 0;
 }
 
 @-moz-document url-prefix() {
     .file-btn-native {
-        padding: 9px 0 9px 16px;
+        padding: 8px 0 8px 48px;
     }
 }
 
 _::-webkit-full-page-media, _:future, :root .file-btn-native {
-    padding: 10px 0 9px 10px;
+    padding: 10px 0 9px 43px;
 }
 
 .bottom-row {
