@@ -1,4 +1,6 @@
-import { empty, isObject, nthBit, getUint16, getUint32 } from '../src/functions.js';
+import { empty, isObject,
+         nthBit, getUint16, getUint32,
+         toFitTimestamp, toFitSpeed, toFitDistance } from '../src/functions.js';
 import { appTypes } from '../src/fit/profiles.js';
 import { localMessageDefinitions as lmd } from '../src/fit/local-message-definitions.js';
 import { data } from './data.js';
@@ -720,103 +722,68 @@ describe('encodes FIT activity file', () => {
     });
 });
 
-describe('fixes minimal broken FIT file', () => {
 
-    let buffer = new Uint8Array(data.brokenMinimal).buffer;
-    let view   = new DataView(buffer);
 
-    let activity      = fit.activity.read(view);
-    let summary       = fit.summary.calculate(activity);
-    let check         = fit.fixer.check(activity);
-    let fixedActivity = fit.fixer.fix(view, activity, summary, check);
-    let fixed         = fit.activity.encode(fixedActivity);
+describe('', () => {
 
-    let fixedView = new DataView(fixed.buffer);
+    let record = {
+        cadence: 83,
+        distance: 0.00103,
+        hr: 150,
+        power: 287,
+        speed: 32.07,
+        timestamp: 1596813328000,
+    };
 
-    describe('correct input', () => {
-        test('length', () => {
-            expect(view.byteLength).toBe(12+155);
+    let RecordDefinition = {
+        type: "definition",
+        message: "record",
+        local_number: 3,
+        length: 6+15,
+        data_msg_length: 1+12,
+        fields: [
+            {field: "timestamp",  number: 253, size: 4, base_type: 134},
+            {field: "distance",   number:   5, size: 4, base_type: 134},
+            {field: "heart_rate", number:   3, size: 1, base_type: 2},
+            {field: "power",      number:   7, size: 2, base_type: 132},
+            {field: "cadence",    number:   4, size: 1, base_type: 2},
+    ]};
+
+    let FITjsRecord = {
+        type: "data",
+        message: "record",
+        local_number: 3,
+        fields: {
+            timestamp: 965747728,
+            power: 287,
+            cadence: 83,
+            speed: 8908,
+            heart_rate: 150,
+            distance: 103,
+        }};
+
+    function toFITjsRecord(record, definition = RecordDefinition) {
+        let fields = {
+            timestamp: toFitTimestamp(record.timestamp),
+            power: record.power,
+            cadence: record.cadence,
+            speed: toFitSpeed(record.speed),
+            heart_rate: record.hr,
+            distance: toFitDistance(record.distance),
+        };
+
+        return {
+            type: "data",
+            message: "record",
+            local_number: 3,
+            fields: fields
+        };
+    }
+
+    describe('Flux record to FITjs record', () => {
+        test('', () => {
+            expect(toFITjsRecord(record)).toEqual(FITjsRecord);
         });
     });
 
-    test('fixed file length', () => {
-        expect(fixed.byteLength).toBe(12+155+213+2);
-    });
-
-    test('data records length in header', () => {
-        expect(fixedView.getUint32(4, true)).toBe(155+213);
-    });
-
-    test('crc at end', () => {
-        expect(fixedView.getUint16(fixed.byteLength - 2, true)).toBe(17634); // 33392
-    });
-
-    test('fixed file', () => {
-        expect(Array.from(fixed)).toStrictEqual(data.fixedMinimal);
-    });
 });
-
-
-describe('check activity for errors', () => {
-
-    let brokenBuffer = new Uint8Array(data.brokenMinimal).buffer;
-    let brokenView   = new DataView(brokenBuffer);
-
-    let broken      = fit.activity.read(brokenView);
-    let checkBroken = fit.fixer.check(broken);
-
-    let fixedBuffer = new Uint8Array(data.fixedMinimal).buffer;
-    let fixedView   = new DataView(fixedBuffer);
-
-    let fixed      = fit.activity.read(fixedView);
-    let checkFixed = fit.fixer.check(fixed);
-
-    describe('check structure', () => {
-        test('structure of broken fit file', () => {
-            const structure = {
-                fileHeader: true,
-                crc: false,
-                definitions: { fileId: true,
-                               event: true,
-                               record: true,
-                               lap: false,
-                               session: false,
-                               activity: false },
-                data: {
-                    fileId: true,
-                    event: { start: true, stop: false },
-                    lap: false,
-                    session: false,
-                    activity:false
-                }
-            };
-
-            expect(checkBroken).toEqual(structure);
-        });
-        test('structure of correct fit file', () => {
-            const structure = {
-                fileHeader: true,
-                crc: true,
-                definitions: { fileId: true,
-                               event: true,
-                               record: true,
-                               lap: true,
-                               session: true,
-                               activity: true },
-                data: {
-                    fileId: true,
-                    event: { start: true, stop: true },
-                    lap: true,
-                    session: true,
-                    activity: true
-                }
-            };
-
-            expect(checkFixed).toEqual(structure);
-        });
-    });
-});
-
-
-// describe('handles inProgressActivity.fit', () => {
-// });

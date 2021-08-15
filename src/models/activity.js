@@ -1,5 +1,6 @@
 import { fileHandler } from '../file.js';
 import { fit } from '../fit/fit.js';
+import { fixer } from '../fit/fixer.js';
 import { xf, toJsTimestamp } from '../functions.js';
 
 function Activity() {
@@ -42,17 +43,17 @@ function Activity() {
             summary = fit.summary.calculate(activity);
             dataRecords = fit.summary.getDataRecords(activity);
 
-            const check = fit.fixer.check(activity);
+            const check = fixer.check(activity);
 
             console.log('original activity ---->');
             console.log(activity);
             console.log('end original activity');
 
-            if(fit.fixer.allPass(check)) {
+            if(fixer.allPass(check)) {
                 fixedFile = view;
                 fixedActivity = activity;
             } else {
-                fixedActivity = fit.fixer.fix(view, activity, summary, check);
+                fixedActivity = fixer.fix(view, activity, summary, check);
                 fixedFile = fit.activity.encode(activity);
 
                 console.log('fixed activity ---->');

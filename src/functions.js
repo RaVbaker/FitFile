@@ -156,6 +156,24 @@ function now() {
     return toFitTimestamp(Date.now());
 }
 
+function toFitSpeed(speed, unit = 'kph') {
+    const scale = 1000;
+
+    if(unit === 'kph') {
+        return parseInt((speed / 3.6) * scale, 10);
+    }
+    return speed;
+}
+
+function toFitDistance(distance, unit = 'km') {
+    const scale = 100;
+
+    if(unit === 'km') {
+        return parseInt((distance * 1000) * scale, 10);
+    }
+    return distance;
+}
+
 // Bits
 function nthBit(field, bit) {
     return (field >> bit) & 1;
@@ -380,6 +398,8 @@ export {
     toFitTimestamp,
     toJsTimestamp,
     now,
+    toFitSpeed,
+    toFitDistance,
 
     // Bits
     nthBit,
