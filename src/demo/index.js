@@ -1,4 +1,4 @@
-import { xf } from './functions.js';
+import { xf } from '../functions.js';
 import { activity } from './models/activity.js';
 import './views/views.js';
 

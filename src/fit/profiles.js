@@ -1,6 +1,4 @@
 
-
-
 const messages = {
     'file_id': {
         global_number: 0,

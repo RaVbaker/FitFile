@@ -762,7 +762,7 @@ describe('', () => {
             distance: 103,
         }};
 
-    function toFITjsRecord(record, definition = RecordDefinition) {
+    function toFITjsRecord(record) {
         let fields = {
             timestamp: toFitTimestamp(record.timestamp),
             power: record.power,

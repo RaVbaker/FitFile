@@ -14,6 +14,22 @@ class FileHandler {
             };
         });
     }
+    readJSONFile(file) {
+        console.log('json upload');
+
+        const self = this;
+        const reader = new FileReader();
+        reader.readAsText(file);
+
+        return new Promise((resolve, reject) => {
+            reader.onload = function(event) {
+                return resolve(reader.result);
+            };
+            reader.onerror = function(event) {
+                return reject(reader.error);
+            };
+        });
+    }
     unsupporedFormat() {
         console.warn(`Only .fit files are supported!`);
     }
@@ -21,8 +37,9 @@ class FileHandler {
         const self = this;
         let ext = file.name.split('.').pop();
         switch(ext) {
-            case 'fit': return self.readBinaryFile(file); break;
-            default:    return self.unsupportedFormat();  break;
+            case 'fit':  return self.readBinaryFile(file); break;
+            case 'json': return self.readJSONFile(file); break;
+            default:     return self.unsupportedFormat();  break;
         }
     }
     save() {

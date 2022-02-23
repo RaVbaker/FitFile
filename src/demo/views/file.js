@@ -1,4 +1,4 @@
-import { xf } from '../functions.js';
+import { xf } from '../../functions.js';
 
 // Input Button Upload
 let fileBtn       = document.getElementById('file-upload-btn');

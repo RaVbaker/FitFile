@@ -1,7 +1,7 @@
 import { fileHandler } from '../file.js';
-import { fit } from '../fit/fit.js';
-import { fixer } from '../fit/fixer.js';
-import { xf, toJsTimestamp } from '../functions.js';
+import { fit } from '../../fit/fit.js';
+import { fixer } from '../../fit/fixer.js';
+import { xf, isString, isObject } from '../../functions.js';
 
 function Activity() {
     let file = false;
@@ -26,12 +26,41 @@ function Activity() {
         file = res;
         fileName = blob.name;
 
-        open(res);
+        if(isString(file)) {
+            openJSON(res);
+        }
+
+        if(isObject(file)) {
+            openFIT(res);
+        }
 
         return res;
     }
 
-    function open(file) {
+    function openJSON(file) {
+        xf.dispatch('file:start');
+        console.log(`${file.length} bytes`, file);
+
+        try {
+            const activity = JSON.parse(file);
+            const check = fixer.check(activity);
+
+            console.log('uploaded json activity ---->');
+            console.log(activity);
+            console.log('end uploaded json activity');
+
+            fixedFile = fit.activity.encode(activity);
+
+            xf.dispatch('file:success');
+        } catch(e) {
+            xf.dispatch('file:error');
+            console.log(e);
+        } finally {
+            xf.dispatch('file:done');
+        }
+    }
+
+    function openFIT(file) {
         xf.dispatch('file:start');
 
         console.log(`${file.byteLength} bytes`, file);

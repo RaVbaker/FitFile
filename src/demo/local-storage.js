@@ -1,6 +1,4 @@
-import { exists } from './functions.js';
-
-
+import { exists } from '../functions.js';
 
 function LocalStorage(args = {}) {
 
