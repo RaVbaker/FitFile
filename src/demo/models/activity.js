@@ -24,7 +24,9 @@ function Activity() {
         let res = await fileHandler.read(blob);
 
         file = res;
-        fileName = blob.name;
+        fileName = blob.name.replace(/.fit|.json/g,'');;
+
+        console.log(blob);
 
         if(isString(file)) {
             openJSON(res);
@@ -102,11 +104,11 @@ function Activity() {
     function download() {
         if(!fixedFile) return;
         const blob = new Blob([fixedFile], {type: 'application/octet-stream'});
-        fileHandler.save()(blob, `fixed-${fileName}`);
+        fileHandler.save()(blob, `fixed-${fileName}.fit`);
     }
 
     function jsonExport() {
-        fileHandler.saveJson(activity, `json-${fileName}`);
+        fileHandler.saveJson(activity, `json-${fileName}.json`);
     }
 
     return Object.freeze({ read, open, download });

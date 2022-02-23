@@ -15,8 +15,6 @@ class FileHandler {
         });
     }
     readJSONFile(file) {
-        console.log('json upload');
-
         const self = this;
         const reader = new FileReader();
         reader.readAsText(file);
@@ -30,8 +28,9 @@ class FileHandler {
             };
         });
     }
-    unsupporedFormat() {
-        console.warn(`Only .fit files are supported!`);
+    unsupportedFormat() {
+        console.warn(`Only .fit and FITjs formated JSON files are supported!`);
+        alert(`Only .fit and FITjs formated JSON files are supported!`);
     }
     read(file) {
         const self = this;
@@ -59,7 +58,7 @@ class FileHandler {
         const json = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(activity));
         var downloadAnchorNode = document.createElement('a');
         downloadAnchorNode.setAttribute('href', json);
-        downloadAnchorNode.setAttribute('download', `${fileName}.json`);
+        downloadAnchorNode.setAttribute('download', fileName);
         document.body.appendChild(downloadAnchorNode);
         downloadAnchorNode.click();
         downloadAnchorNode.remove();
