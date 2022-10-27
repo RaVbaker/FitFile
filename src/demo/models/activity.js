@@ -1,7 +1,7 @@
-import { fileHandler } from '../file.js';
+import { fileHandler, unsupportedFormat } from '../file.js';
 import { fit } from '../../fit/fit.js';
 import { fixer } from '../../fit/fixer.js';
-import { xf, isString, isObject } from '../../functions.js';
+import { xf, isString, isObject, first } from '../../functions.js';
 
 function Activity() {
     let file = false;
@@ -71,6 +71,10 @@ function Activity() {
 
         try {
             activity = fit.activity.read(view);
+            if (first(activity).fileType != ".FIT" ) {
+                unsupportedFormat();
+                return;
+            }
             summary = fit.summary.calculate(activity);
             dataRecords = fit.summary.getDataRecords(activity);
 

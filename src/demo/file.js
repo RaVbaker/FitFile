@@ -1,3 +1,8 @@
+function unsupportedFormat() {
+    console.warn(`Only .fit and FITjs formated JSON files are supported!`);
+    alert(`Only .fit and FITjs formated JSON files are supported!`);
+}
+
 class FileHandler {
     constructor(args) {}
     async readBinaryFile(file) {
@@ -28,17 +33,17 @@ class FileHandler {
             };
         });
     }
-    unsupportedFormat() {
-        console.warn(`Only .fit and FITjs formated JSON files are supported!`);
-        alert(`Only .fit and FITjs formated JSON files are supported!`);
-    }
+    
     read(file) {
         const self = this;
         let ext = file.name.split('.').pop();
         switch(ext) {
             case 'fit':  return self.readBinaryFile(file); break;
             case 'json': return self.readJSONFile(file); break;
-            default:     return self.unsupportedFormat();  break;
+            default:      // assume binary file
+                console.log("Implicit assume it's a binary file");
+                return self.readBinaryFile(file);
+                break;
         }
     }
     save() {
@@ -67,4 +72,4 @@ class FileHandler {
 
 const fileHandler = new FileHandler();
 
-export { fileHandler };
+export { fileHandler, unsupportedFormat };
