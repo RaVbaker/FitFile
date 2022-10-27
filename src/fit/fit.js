@@ -1,6 +1,6 @@
 import { exists, empty, isUndefined, isObject,
          map, first, last, traverse,
-         nthBitToBool, calculateCRC, typeToAccessor } from '../functions.js';
+         nthBitToBool, calculateCRC, typeToAccessor, readString, writeString } from '../functions.js';
 import { messages, basetypes, appTypes } from './profiles.js';
 import { localMessageDefinitions as lmd } from './local-message-definitions.js';
 
@@ -166,7 +166,9 @@ function Definition(args = {}) {
 
     function read(view, start = 0) {
         const header         = view.getUint8(start, true);
+        
         const local_number   = header & 0b00001111;
+        
         const architecture   = view.getUint8(start+2, true);
         const messageNumber  = view.getUint16(start+3, true);
         const message        = numberToMessage(messageNumber)[0];
@@ -221,6 +223,7 @@ function FieldDefinition(args = {}) {
 
     function numberToField(message, number) {
         const messageFields = messages[message].fields;
+
         let res = Object.entries(messageFields)
                         .filter(x => x[1].number === number)[0];
         if(res === undefined) console.error(`field number ${number} on message ${message} not found`);
@@ -265,7 +268,11 @@ function Data() {
         index += headerLength;
 
         definition.fields.forEach((field) => {
-            view[typeToAccessor(field.base_type, 'set')](index, values[field.field], true);
+            if (field.base_type == 7) { // string
+                writeString(view, index, field.size, values[field.field])
+            } else {
+                view[typeToAccessor(field.base_type, 'set')](index, values[field.field], true);
+            }
             index += field.size;
         });
 
@@ -281,7 +288,13 @@ function Data() {
         let fields = {};
 
         definition.fields.forEach((fieldDef) => {
-            let value = view[typeToAccessor(fieldDef.base_type, 'get')](index, true);
+            let value
+            if (fieldDef.base_type === 7) { // string
+                value = readString(view, index, fieldDef.size).str
+            } 
+            else {
+                value = view[typeToAccessor(fieldDef.base_type, 'get')](index, true);
+            }   
             fields[fieldDef.field] = value;
             index += fieldDef.size;
         });
@@ -311,7 +324,7 @@ function Activity() {
     function toDefinitions(activity) {
         return activity.reduce((acc, msg) => {
             if(msg.type === 'definition') {
-                acc[msg.local_number] = msg;
+                acc[`${msg.message}|${msg.local_number}`] = msg;
                 return acc;
             }
             return acc;
@@ -329,7 +342,7 @@ function Activity() {
                 return acc + msg.length;
             }
             if(msg.type === 'data') {
-                let definition = definitions[msg.local_number];
+                let definition = definitions[`${msg.message}|${msg.local_number}`];
                 return acc + definition.data_msg_length;
             }
             if(msg.type === 'crc') {
@@ -346,6 +359,11 @@ function Activity() {
         const fileLength        = toFileLength(activity, definitions);
         const headerLength      = activity[0].length;
         const dataRecordsLength = fileLength - headerLength - crcLength;
+
+        function getLocalDefinition(local_number) {
+            let definition = Object.entries(definitions).filter(d => d[1].local_number === local_number)[0][1];
+            return definition;
+        }
 
         let uint8 = new Uint8Array(fileLength);
         let view  = new DataView(uint8.buffer);
@@ -365,7 +383,8 @@ function Activity() {
                 offset+= encoded.byteLength;
             }
             if(msg.type === 'data') {
-                const encoded = fit.data.encode(definitions[msg.local_number], msg.fields);
+                const definition = definitions[`${msg.message}|${msg.local_number}`]
+                const encoded = fit.data.encode(definition, msg.fields);
                 uint8.set(encoded, offset);
                 offset+= encoded.byteLength;
             }
@@ -507,7 +526,7 @@ function Summary() {
         res.distance  = last(dataRecords).fields.distance;
         res.timeStart = first(dataRecords).fields.timestamp;
         res.timeEnd   = last(dataRecords).fields.timestamp;
-        res.elapsed   = (res.timeEnd - res.timeStart); // maybe * 1000;
+        res.elapsed   = (res.timeEnd - res.timeStart) * 1000;
 
         return res;
     }
@@ -572,6 +591,7 @@ function Summary() {
 
 
         if(check !== false) {
+            if(!check.definitions.event)      footer.push(lmd.event);
             if(!check.data.event.stop)      footer.push(eventStopAllData);
             if(!check.definitions.lap)      footer.push(lmd.lap);
             if(!check.data.lap)             footer.push(lapData);

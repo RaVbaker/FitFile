@@ -49,6 +49,7 @@ const messages = {
             temperature:               {number:  13, base_type: 1},   // 0b1111111, 127
             enhanced_altitude:         {number:  78, base_type: 134}, // non
             enhanced_speed:            {number:  73, base_type: 134}, // non
+            calories: {number: 33, base_type: 132},
         }
     },
     'event': {
@@ -94,6 +95,7 @@ const messages = {
             lap_trigger:         {number:  24, base_type: 0},
             sport:               {number:  25, base_type: 0},
             event_group:         {number:  26, base_type: 2},
+            sub_sport:             {number:   39, base_type: 0},
         }
     },
     'session': {
@@ -132,7 +134,14 @@ const messages = {
             max_cadence:           {number:  19, base_type: 2},
             total_training_effect: {number:  24, base_type: 2},
             event_group:           {number:  27, base_type: 2},
-            trigger:               {number:  28, base_type: 0}
+            trigger:               {number:  28, base_type: 0},
+            normalized_power: {number: 34, base_type: 132},
+            training_stress_score: {number: 35, base_type: 132},
+            intensity_factor: {number: 36, base_type: 132},
+            total_moving_time: {number: 59, base_type: 134},
+            min_heart_rate:      {number:  64, base_type: 2},
+            opponent_name: {number: 84, base_type: 7},
+            avg_vam: {number: 139, base_type: 132},
         }
     },
     'activity': {
@@ -153,6 +162,25 @@ const messages = {
     },
     'workout_step': {
         global_number: 27,
+    },
+    'user_profile': {
+        global_number: 3,
+        fields: {
+            message_index: { number: 25, base_type: 132},
+            friendly_name: { number: 0, base_type: 7},
+            gender: { number: 1, base_type: 0},
+            age: { number: 2, base_type: 2},
+            height: { number: 3, base_type: 2},
+            weight: { number: 4, base_type: 132},
+            local_id: { number: 22, base_type: 132},
+        }
+    },
+    'file_creator': {
+        global_number: 49,
+        fields: {
+            software_version: {number: 0, base_type: 132},
+            hardware_version: {number: 0, base_type: 2},
+        }
     }
 };
 

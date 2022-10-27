@@ -244,11 +244,12 @@ function calculateCRC(uint8array, start, end) {
 }
 
 function typeToAccessor(basetype, method = 'set') {
-    const uint8   = [0, 2, 7, 10, 13, 'enum', 'uint8', 'string', 'byte'];
+    const uint8   = [0, 2, 10, 13, 'enum', 'uint8', 'uint8z', 'byte'];
     const uint16  = [132, 139, 'uint16', 'uint16z'];
     const uint32  = [134, 140, 'uint32', 'uint32z'];
     const uint64  = [143, 144, 'uint64', 'uint64z'];
-
+    const strings   = [7, 'string'];
+    
     const int8    = [1, 'sint8'];
     const int16   = [131, 'sint16'];
     const int32   = [133, 'sint32'];
@@ -258,6 +259,7 @@ function typeToAccessor(basetype, method = 'set') {
     const float64 = [137, 'float64'];
 
     if(uint8.includes(basetype))   return `${method}Uint8`;
+    // if(strings.includes(basetype))   return `${method}String`;
     if(uint16.includes(basetype))  return `${method}Uint16`;
     if(uint32.includes(basetype))  return `${method}Uint32`;
     if(uint64.includes(basetype))  return `${method}Uint64`;
@@ -269,6 +271,45 @@ function typeToAccessor(basetype, method = 'set') {
     if(float64.includes(basetype)) return `${method}Float64`;
 
     return `${method}Uint8`;
+}
+
+function readString(buf, byteOffset, bytesToRead, terminator){
+    var str = "";
+    var byteLength = 0;
+    byteOffset = byteOffset || 0;
+    var nullTerm = false;
+    if(typeof bytesToRead === "undefined"){
+        nullTerm = true;
+        bytesToRead = buf.byteLength - buf.byteOffset;
+    }
+    var charCode;
+    for(var i = 0; i < bytesToRead; i++){
+        charCode = buf.getUint8(i + byteOffset);
+        byteLength++;
+        if(nullTerm && charCode === terminator){
+            break;
+        }
+        str += String.fromCharCode(charCode);
+    }
+    str = str.split('\u0000')[0]
+    byteLength = str.length
+    return {
+        str: str, 
+        byteLength: byteLength
+    };
+}
+
+function writeString(buf, byteOffset, byteLength, value){
+    let i, chr;
+    for(i = 0; i < value.length && byteOffset + i < byteLength; i++){
+        chr = value.charCodeAt(i);
+        if(chr > 255){
+            chr = "?".charCodeAt(0);
+        }
+        buf.setUint8(byteOffset + i, chr);
+    }
+    
+    return i;
 }
 
 function powerToZone(value, ftp) {
@@ -412,6 +453,8 @@ export {
     // FIT
     calculateCRC,
     typeToAccessor,
+    readString,
+    writeString,
 
     // XF
     xf

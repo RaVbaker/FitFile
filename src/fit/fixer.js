@@ -4,6 +4,7 @@ import { exists, empty, isUndefined, isObject,
          calculateCRC, typeToAccessor } from '../functions.js';
 import { appTypes } from './profiles.js';
 import { fit } from './fit.js';
+import { localMessageDefinitions } from './local-message-definitions.js';
 
 
 
@@ -76,7 +77,6 @@ function Fixer() {
     }
 
     function allPass(check) {
-
         function accumulate(acc, k, v, obj) {
             acc.push(v);
             return acc;
@@ -85,13 +85,45 @@ function Fixer() {
         return traverse(check, accumulate, []).every(value => value === true);
     }
 
+    const ACTIVITY_TYPE = 4;
+
     function fix(view, activity, summary = {}, check = {}) {
-        let footer = fit.summary.toFooter(summary, check);
+        let duration = fit.summary.getDataRecords(activity).length
+        let fixedActivity = activity.reduce((acc, msg) => {
+            if(isDataFor(msg, 'file_id')) {
+                msg.fields.type = ACTIVITY_TYPE
+            }
+            if(isDataFor(msg, 'user_profile')) {
+                msg.fields.weight = 808
+                msg.fields.height = 186
+                msg.fields.gender = 1 // male
+            }
+            if(isDataFor(msg, 'record')) {
+                msg.fields.timestamp -= duration--
+                msg.fields.distance *= 100
+                msg.fields.speed *= 1000
+            }
+
+            if(isDataFor(msg, 'lap') || isDataFor(msg, 'session')) {
+                check.data[msg.message] = false
+                return acc
+            }
+
+            if(isDefinitionFor(msg, 'lap') || isDefinitionFor(msg, 'session')) {
+                check.definitions[msg.message] = false
+                return acc
+            }
+            acc.push(msg);
+            return acc;
+        }, [])
+
+        summary = fit.summary.calculate(fixedActivity)
+        const footer = fit.summary.toFooter(summary, check);
 
         // append footer
-        footer.forEach((msg) => activity.push(msg));
+        footer.forEach((msg) => fixedActivity.push(msg));
 
-        return activity;
+        return fixedActivity;
     }
 
     return Object.freeze({ fix, check, allPass });

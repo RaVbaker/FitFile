@@ -85,7 +85,7 @@ function Activity() {
                 fixedActivity = activity;
             } else {
                 fixedActivity = fixer.fix(view, activity, summary, check);
-                fixedFile = fit.activity.encode(activity);
+                fixedFile = fit.activity.encode(fixedActivity);
 
                 console.log('fixed activity ---->');
                 console.log(fixedActivity);
