@@ -21,7 +21,7 @@ Fit File is a tool for fixing broken .FIT files, exported from Renpho / NexGim b
 
 ## The Tool
 
-[Fit File on vercel](https://fit-file-renpho-strava-3viq3efux-ravbaker.vercel.app/)
+[Fit File on vercel](https://fit-file-renpho-strava.vercel.app/)
 
 
 ## Changelog
